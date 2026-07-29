@@ -1,0 +1,4 @@
+tsl_translator
+*.o
+*.bak
+.DS_Store
