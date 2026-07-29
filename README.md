@@ -2,9 +2,10 @@
 
 > **Tác giả Mô hình & Động cơ (Author & Developer)**: **Hà Vũ Công**  
 > **Tên Mô hình AI (Model Name)**: **Alida TSL (Non-Autoregressive INT8 Model)**  
+> **Website Live Demo / Production Domain**: [https://tienhiep.lyvuha.com](https://tienhiep.lyvuha.com)  
 > **GitHub Repository Chính Thức**: [https://github.com/congkx123789/CPP_zh2vi_Alida_TSL_Model](https://github.com/congkx123789/CPP_zh2vi_Alida_TSL_Model)
 
-Bộ công cụ dịch thuật Trung - Việt **100% Nguyên bản C++ (Native C++)**, được nghiên cứu và phát triển bởi **Hà Vũ Công**. Động cơ chạy độc lập dưới dạng file thực thi nhị phân (**Binary ELF**) không phụ thuộc vào Python hay bất kỳ thư viện môi trường cồng kềnh nào.
+Bộ công cụ dịch thuật Trung - Việt **100% Nguyên bản C++ (Native C++)**, được nghiên cứu và phát triển bởi **Hà Vũ Công**. Động cơ đã được triển khai chạy thực tế tại tên miền [tienhiep.lyvuha.com](https://tienhiep.lyvuha.com). Hệ thống chạy độc lập dưới dạng file thực thi nhị phân (**Binary ELF**) không phụ thuộc vào Python hay bất kỳ thư viện môi trường cồng kềnh nào.
 
 ---
 
@@ -94,6 +95,7 @@ graph TB
 | Thành phần Architecture | Giá trị cấu hình | Mô tả chi tiết kỹ thuật |
 | :--- | :--- | :--- |
 | **Tác giả Mô hình** | **Hà Vũ Công** | Nghiên cứu, huấn luyện và tối ưu hóa |
+| **Tên miền ứng dụng (Live Domain)** | [tienhiep.lyvuha.com](https://tienhiep.lyvuha.com) | Địa chỉ website chạy ứng dụng thực tế |
 | **Kích thước Vector Ẩn ($d_{model}$)** | **`256`** | Số chiều không gian ẩn biểu diễn ngữ nghĩa của từ |
 | **Số đầu Attention ($n_{head}$)** | **`8`** | Mỗi Head có kích thước $d_k = 256 / 8 = 32$ chiều |
 | **Số lớp Transformer Encoder** | **`4 layers`** | Trích xuất ngữ cảnh tiếng Trung 2 chiều |
@@ -197,6 +199,7 @@ Chạy chương trình đo tốc độ xử lý 1,000 câu mẫu thực tế:
 | Tiêu Chí Kỹ Thuật | Bản Python Gốc | Bản Native C++ (`./tsl_translator`) | Mức Độ Tối Ưu |
 | :--- | :--- | :--- | :--- |
 | **Tác giả Mô hình** | **Hà Vũ Công** | **Hà Vũ Công** | **Độc quyền sáng tạo** |
+| **Tên miền triển khai (Live)** | [tienhiep.lyvuha.com](https://tienhiep.lyvuha.com) | [tienhiep.lyvuha.com](https://tienhiep.lyvuha.com) | **Production Build** |
 | **Phụ thuộc môi trường** | Phải có Python 3.12 & gói PyTorch/PyPI | **Độc lập 100% (Binary ELF)** | **Tối đa (Portable)** |
 | **Dung lượng RAM chiếm dụng** | `1,113 MB` | **`~108 MB`** | **Tiết kiệm >1,000 MB RAM** |
 | **Thời gian Khởi động (Warmup)** | `196.01 ms` | **`6.5 ms`** | **Nhanh hơn gấp 30 LẦN!** |
