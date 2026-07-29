@@ -206,25 +206,28 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
 
             std::string best_meaning = meanings[0];
 
-            if (phrase_len == 1) {
+            if (meanings.size() > 1 || (phrase_len == 1 && hv_char_multi.count(char_zh) > 0)) {
                 float max_cand_score = -1.0f;
                 std::string best_cand = meanings[0];
 
-                bool is_multi = (hv_char_multi.count(char_zh) > 0 && hv_char_list.count(char_zh) > 0);
-                const auto& cands = is_multi ? hv_char_list[char_zh] : meanings;
+                const auto& cands = (phrase_len == 1 && hv_char_multi.count(char_zh) > 0 && hv_char_list.count(char_zh) > 0)
+                                    ? hv_char_list[char_zh] : meanings;
 
-                for (size_t cand_idx = 0; cand_idx < cands.size(); ++cand_idx) {
-                    const auto& cand = cands[cand_idx];
-                    if (tokenizer.vi2idx.count(cand)) {
-                        int tok_id = tokenizer.vi2idx.at(cand);
-                        float ai_prob = get_slice_prob(w_min, w_max, tok_id);
-                        
-                        // Pure AI Decision: score is 100% determined by AI Softmax probability
-                        float score = ai_prob;
-                        if (score > max_cand_score) {
-                            max_cand_score = score;
-                            best_cand = cand;
+                for (const auto& cand : cands) {
+                    std::stringstream ss(cand);
+                    std::string sub_w;
+                    float max_ai_prob = 0.0f;
+                    while (ss >> sub_w) {
+                        if (tokenizer.vi2idx.count(sub_w)) {
+                            int tok_id = tokenizer.vi2idx.at(sub_w);
+                            float p = get_slice_prob(w_min, w_max, tok_id);
+                            if (p > max_ai_prob) max_ai_prob = p;
                         }
+                    }
+
+                    if (max_ai_prob > max_cand_score) {
+                        max_cand_score = max_ai_prob;
+                        best_cand = cand;
                     }
                 }
                 best_meaning = best_cand;
