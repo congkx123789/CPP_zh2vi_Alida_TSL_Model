@@ -88,38 +88,15 @@ bool LogitsProcessor::load_hv_dict(const std::string& hv_dict_path) {
         hv_map[ch] = mean;
         std::stringstream ss(mean);
         std::string item;
-        std::vector<std::string> hv_cands;
-        std::vector<std::string> tv_cands;
+        std::vector<std::string> unique_cands;
+        std::unordered_set<std::string> seen;
 
         while (std::getline(ss, item, '/')) {
             item = trim_str(item);
             if (item.empty()) continue;
-            
-            size_t tv_pos = item.find("| TV:");
-            if (tv_pos == std::string::npos) tv_pos = item.find("|TV:");
-
-            if (tv_pos != std::string::npos) {
-                std::string hv_part = trim_str(item.substr(0, tv_pos));
-                size_t colon_pos = item.find(':', tv_pos);
-                std::string tv_part = (colon_pos != std::string::npos) ? trim_str(item.substr(colon_pos + 1)) : "";
-
-                if (!hv_part.empty()) hv_cands.push_back(hv_part);
-                if (!tv_part.empty()) tv_cands.push_back(tv_part);
-            } else {
-                hv_cands.push_back(item);
-            }
-        }
-
-        std::vector<std::string> all_cands;
-        all_cands.insert(all_cands.end(), tv_cands.begin(), tv_cands.end());
-        all_cands.insert(all_cands.end(), hv_cands.begin(), hv_cands.end());
-
-        std::unordered_set<std::string> seen;
-        std::vector<std::string> unique_cands;
-        for (const auto& c : all_cands) {
-            if (!seen.count(c)) {
-                seen.insert(c);
-                unique_cands.push_back(c);
+            if (!seen.count(item)) {
+                seen.insert(item);
+                unique_cands.push_back(item);
             }
         }
 
@@ -128,8 +105,6 @@ bool LogitsProcessor::load_hv_dict(const std::string& hv_dict_path) {
         }
 
         hv_char_list[ch] = unique_cands;
-        hv_pure_set[ch] = std::unordered_set<std::string>(hv_cands.begin(), hv_cands.end());
-        hv_tv_set[ch] = std::unordered_set<std::string>(tv_cands.begin(), tv_cands.end());
     }
     return true;
 }
