@@ -213,18 +213,14 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
                 bool is_multi = (hv_char_multi.count(char_zh) > 0 && hv_char_list.count(char_zh) > 0);
                 const auto& cands = is_multi ? hv_char_list[char_zh] : meanings;
 
-                for (const auto& cand : cands) {
+                for (size_t cand_idx = 0; cand_idx < cands.size(); ++cand_idx) {
+                    const auto& cand = cands[cand_idx];
                     if (tokenizer.vi2idx.count(cand)) {
                         int tok_id = tokenizer.vi2idx.at(cand);
                         float ai_prob = get_slice_prob(w_min, w_max, tok_id);
                         
-                        bool is_in_hv = (matched_entry.hv_meanings.count(cand) > 0 || (hv_pure_set.count(char_zh) > 0 && hv_pure_set[char_zh].count(cand) > 0));
-                        bool is_in_tv = (hv_tv_set.count(char_zh) > 0 && hv_tv_set[char_zh].count(cand) > 0);
-
-                        float hv_boost = is_in_hv ? 0.20f : 0.0f;
-                        float tv_boost = is_in_tv ? 0.35f : 0.0f;
-                        float score = ai_prob + hv_boost + tv_boost;
-
+                        // Pure AI Decision: score is 100% determined by AI Softmax probability
+                        float score = ai_prob;
                         if (score > max_cand_score) {
                             max_cand_score = score;
                             best_cand = cand;
