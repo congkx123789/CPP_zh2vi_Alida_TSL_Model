@@ -23,13 +23,11 @@ except ImportError:
 
 def main():
     root_dir = os.path.dirname(os.path.abspath(__file__))
-    dataset_dir = os.path.join(root_dir, "data", "dict")
-    if not os.path.exists(dataset_dir):
-        dataset_dir = os.path.join(root_dir, "Data", "my dataset")
-    if not os.path.exists(dataset_dir) and os.path.exists("/home/alida/Documents/My_model_translate/Data/my dataset"):
-        dataset_dir = "/home/alida/Documents/My_model_translate/Data/my dataset"
+    if not os.path.exists(os.path.join(root_dir, "Data", "my dataset")) and os.path.exists("/home/alida/Documents/My_model_translate/Data/my dataset"):
+        root_dir = "/home/alida/Documents/My_model_translate"
 
-    cpp_data_dir = os.path.join(root_dir, "data") if os.path.exists(os.path.join(root_dir, "src")) else os.path.join(root_dir, "TSL_CPP_Native", "data")
+    dataset_dir = os.path.join(root_dir, "Data", "my dataset")
+    cpp_data_dir = os.path.join(root_dir, "TSL_CPP_Native", "data")
     standalone_data_dir = os.path.join(root_dir, "TSL_Translator_Standalone", "data")
 
     print("=" * 80)
