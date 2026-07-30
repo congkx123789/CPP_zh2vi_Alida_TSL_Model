@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
     std::string input_file = "";
     std::string output_file = "";
     bool run_benchmark = false;
-    bool use_gpu = false;
+    TSLExecutionMode mode = TSLExecutionMode::CPU;
 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--text") == 0 && i + 1 < argc) {
@@ -25,24 +25,30 @@ int main(int argc, char* argv[]) {
             base_dir = argv[++i];
         } else if (std::strcmp(argv[i], "--benchmark") == 0) {
             run_benchmark = true;
-        } else if (std::strcmp(argv[i], "--gpu") == 0) {
-            use_gpu = true;
+        } else if (std::strcmp(argv[i], "--gpu") == 0 || std::strcmp(argv[i], "--cuda") == 0) {
+            mode = TSLExecutionMode::GPU_CUDA;
+        } else if (std::strcmp(argv[i], "--npu") == 0 || std::strcmp(argv[i], "--nnapi") == 0 || std::strcmp(argv[i], "--mobile") == 0) {
+            mode = TSLExecutionMode::NPU_MOBILE;
         } else if (std::strcmp(argv[i], "--cpu") == 0) {
-            use_gpu = false;
+            mode = TSLExecutionMode::CPU;
         } else if (input_text.empty() && argv[i][0] != '-') {
             input_text = argv[i];
         }
     }
 
     TSLTranslator translator;
-    if (!translator.init(base_dir, use_gpu)) {
+    if (!translator.init(base_dir, mode)) {
         std::cerr << "❌ Failed to initialize TSL Native C++ Translator." << std::endl;
         return 1;
     }
 
     if (run_benchmark) {
+        std::string mode_name = "CPU MODE";
+        if (mode == TSLExecutionMode::GPU_CUDA) mode_name = "GPU CUDA BATCHING";
+        else if (mode == TSLExecutionMode::NPU_MOBILE) mode_name = "MOBILE NPU SIMULATION (NNAPI/XNNPACK)";
+
         std::cout << "\n================================================================================" << std::endl;
-        std::cout << "🚀 CHƯƠNG TRÌNH BENCHMARK TỐC ĐỘ NGUYÊN BẢN C++ (" << (use_gpu ? "GPU CUDA BATCHING" : "CPU MODE") << ")" << std::endl;
+        std::cout << "🚀 CHƯƠNG TRÌNH BENCHMARK TỐC ĐỘ NGUYÊN BẢN C++ (" << mode_name << ")" << std::endl;
         std::cout << "================================================================================" << std::endl;
 
         std::vector<std::string> base_sentences = {
@@ -73,7 +79,7 @@ int main(int argc, char* argv[]) {
 
         std::cout << "⚡ [C++ Sequential Mode] 500 câu              : " << (seq_ms / 1000.0) << "s (" << seq_tps << " câu/giây)" << std::endl;
 
-        // Test 2: Parallel Batch GPU Mode
+        // Test 2: Parallel Batch GPU / NPU Mode
         auto t2 = std::chrono::high_resolution_clock::now();
         auto batch_results = translator.translate_batch(test_sentences, 256);
         auto t3 = std::chrono::high_resolution_clock::now();
@@ -81,7 +87,7 @@ int main(int argc, char* argv[]) {
         double batch_ms = std::chrono::duration<double, std::milli>(t3 - t2).count();
         double batch_tps = (total_runs / batch_ms) * 1000.0;
 
-        std::cout << "🔥 [C++ Parallel GPU Batch 256] " << total_runs << " câu      : " << (batch_ms / 1000.0) << "s (" << batch_tps << " câu/giây)" << std::endl;
+        std::cout << "🔥 [C++ Parallel Batch 256 (" << mode_name << ")] " << total_runs << " câu : " << (batch_ms / 1000.0) << "s (" << batch_tps << " câu/giây)" << std::endl;
         std::cout << "🚀 Tăng tốc vượt trội                     : " << (batch_tps / seq_tps) << "x lần so với dịch tuần tự" << std::endl;
         std::cout << "================================================================================" << std::endl;
         return 0;

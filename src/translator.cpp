@@ -8,7 +8,7 @@
 TSLTranslator::TSLTranslator() : is_ready(false) {}
 TSLTranslator::~TSLTranslator() {}
 
-bool TSLTranslator::init(const std::string& base_dir, bool use_gpu) {
+bool TSLTranslator::init(const std::string& base_dir, TSLExecutionMode mode) {
     std::cout << "⚡ Initializing Alida TSL Native C++ Translation Engine..." << std::endl;
 
     std::string data_dir = base_dir + "/data";
@@ -42,8 +42,8 @@ bool TSLTranslator::init(const std::string& base_dir, bool use_gpu) {
         std::cerr << "⚠️ Warning: Failed to load Hán Việt dictionary from " << hv_dict_path << std::endl;
     }
 
-    // 4. Load ONNX Model (CPU or GPU)
-    if (!onnx_engine.load_model(onnx_model_path, use_gpu)) {
+    // 4. Load ONNX Model (CPU, GPU CUDA, or Mobile NPU)
+    if (!onnx_engine.load_model(onnx_model_path, mode)) {
         std::cerr << "❌ Failed to load ONNX INT8 model from " << onnx_model_path << std::endl;
         return false;
     }

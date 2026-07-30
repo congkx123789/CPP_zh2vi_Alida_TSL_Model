@@ -18,7 +18,7 @@
 
 /**
  * @class TSLTranslator
- * @brief Lớp dịch thuật cấp cao tích hợp toàn bộ Pipeline 3 Trạm C++ Nguyên bản (Hỗ trợ CPU & GPU CUDA Batching)
+ * @brief Lớp dịch thuật cấp cao tích hợp toàn bộ Pipeline 3 Trạm C++ Nguyên bản (Hỗ trợ CPU, GPU CUDA & Mobile NPU)
  */
 class TSLTranslator {
 public:
@@ -28,10 +28,10 @@ public:
     /**
      * @brief Khởi tạo toàn bộ động cơ dịch (nạp Tokenizer, DAWG Trie, ONNX Model, Hán Việt Dict)
      * @param base_dir Thư mục gốc chứa data/ và model/
-     * @param use_gpu Đặt true để kích hoạt tăng tốc GPU CUDA
+     * @param mode Chế độ phần cứng thực thi (CPU / GPU_CUDA / NPU_MOBILE)
      * @return true nếu khởi tạo thành công
      */
-    bool init(const std::string& base_dir = ".", bool use_gpu = false);
+    bool init(const std::string& base_dir = ".", TSLExecutionMode mode = TSLExecutionMode::CPU);
 
     /**
      * @brief Dịch một câu tiếng Trung sang tiếng Việt hoàn chỉnh
@@ -41,9 +41,9 @@ public:
     std::string translate(const std::string& text_zh);
 
     /**
-     * @brief Dịch song song một mảng danh sách các câu trên GPU CUDA
+     * @brief Dịch song song một mảng danh sách các câu trên GPU CUDA / NPU
      * @param texts_zh Danh sách các câu tiếng Trung
-     * @param batch_size Kích thước Batch GPU (mặc định: 256)
+     * @param batch_size Kích thước Batch GPU/NPU (mặc định: 256)
      * @return Mảng danh sách các câu tiếng Việt tương ứng
      */
     std::vector<std::string> translate_batch(const std::vector<std::string>& texts_zh, size_t batch_size = 256);
