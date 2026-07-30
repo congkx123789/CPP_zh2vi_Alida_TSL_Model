@@ -151,16 +151,16 @@ graph TB
 
 ---
 
-## 🛠️ HƯỚNG DẪN BIÊN DỊCH (COMPILATION)
-
-Dự án đã có sẵn script biên dịch tự động `build.sh`.
-
+### 1. Biên dịch trên Linux / macOS:
 ```bash
-cd TSL_CPP_Native
 ./build.sh
 ```
 
-Lệnh trên sử dụng trình biên dịch `g++ -O3 -std=c++17` để sinh ra file thực thi `./tsl_translator`.
+### 2. Biên dịch trên Windows (MinGW-w64):
+```cmd
+build_windows.bat
+```
+Lệnh trên sử dụng trình biên dịch `g++ -O3 -march=native -std=c++17` để sinh ra file thực thi `tsl_translator.exe`.
 
 ---
 

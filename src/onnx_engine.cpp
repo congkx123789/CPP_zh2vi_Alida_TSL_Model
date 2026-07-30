@@ -2,6 +2,9 @@
 #include <iostream>
 #include <cstring>
 #include "onnxruntime_c_api.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 struct ONNXInferenceEngine::Impl {
     const OrtApi* g_ort = nullptr;
@@ -131,7 +134,15 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
             break;
     }
 
+#ifdef _WIN32
+    // Windows: ONNX Runtime needs wchar_t* path
+    int wlen = MultiByteToWideChar(CP_UTF8, 0, model_path.c_str(), -1, nullptr, 0);
+    std::wstring wpath(wlen, 0);
+    MultiByteToWideChar(CP_UTF8, 0, model_path.c_str(), -1, &wpath[0], wlen);
+    status = impl->g_ort->CreateSession(impl->env, wpath.c_str(), impl->session_options, &impl->session);
+#else
     status = impl->g_ort->CreateSession(impl->env, model_path.c_str(), impl->session_options, &impl->session);
+#endif
     if (status != nullptr) {
         std::cerr << "❌ Failed to load ONNX Model: " << impl->g_ort->GetErrorMessage(status) << std::endl;
         impl->g_ort->ReleaseStatus(status);

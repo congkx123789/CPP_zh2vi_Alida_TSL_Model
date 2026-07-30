@@ -1,4 +1,8 @@
 tsl_translator
+tsl_translator.exe
 *.o
 *.bak
 .DS_Store
+*.txt
+!input.txt
+!README.md
