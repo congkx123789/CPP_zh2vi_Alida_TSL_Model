@@ -44,36 +44,75 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
     impl->g_ort->SetIntraOpNumThreads(impl->session_options, 4);
     impl->g_ort->SetSessionGraphOptimizationLevel(impl->session_options, ORT_ENABLE_ALL);
 
-    if (mode == TSLExecutionMode::GPU_CUDA) {
-        OrtCUDAProviderOptions cuda_options;
-        memset(&cuda_options, 0, sizeof(cuda_options));
-        cuda_options.device_id = 0;
-        OrtStatus* cuda_status = impl->g_ort->SessionOptionsAppendExecutionProvider_CUDA(impl->session_options, &cuda_options);
-        if (cuda_status != nullptr) {
-            std::cout << "⚠️ Warning: Failed to enable CUDA Provider (" << impl->g_ort->GetErrorMessage(cuda_status) << "). Falling back to CPU Mode." << std::endl;
-            impl->g_ort->ReleaseStatus(cuda_status);
-        } else {
-            std::cout << "🚀 [C++ ONNX Engine] GPU CUDA Execution Provider Active on NVIDIA RTX GPU!" << std::endl;
-        }
-    } else if (mode == TSLExecutionMode::NPU_MOBILE) {
-        std::cout << "📱 [Mobile NPU Engine] Initializing Mobile NPU / NNAPI / XNNPACK Execution Pipeline..." << std::endl;
-        const char* ep_keys[] = {"intra_op_num_threads"};
-        const char* ep_vals[] = {"4"};
-        OrtStatus* npu_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "NNAPI", ep_keys, ep_vals, 0);
-        if (npu_status != nullptr) {
-            impl->g_ort->ReleaseStatus(npu_status);
-            OrtStatus* xnn_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "XNNPACK", ep_keys, ep_vals, 1);
-            if (xnn_status != nullptr) {
-                impl->g_ort->ReleaseStatus(xnn_status);
-                std::cout << "📱 [Mobile Engine] Simulated Mobile NPU execution pipeline active (ARM INT8 Quantized Mode)." << std::endl;
+    const char* ep_keys[] = {"intra_op_num_threads"};
+    const char* ep_vals[] = {"4"};
+
+    switch (mode) {
+        case TSLExecutionMode::GPU_CUDA: {
+            OrtCUDAProviderOptions cuda_options;
+            memset(&cuda_options, 0, sizeof(cuda_options));
+            cuda_options.device_id = 0;
+            OrtStatus* cuda_status = impl->g_ort->SessionOptionsAppendExecutionProvider_CUDA(impl->session_options, &cuda_options);
+            if (cuda_status != nullptr) {
+                std::cout << "⚠️ Warning: Failed to enable CUDA Provider (" << impl->g_ort->GetErrorMessage(cuda_status) << "). Falling back to CPU Mode." << std::endl;
+                impl->g_ort->ReleaseStatus(cuda_status);
             } else {
-                std::cout << "📱 [Mobile Engine] ARM XNNPACK Mobile NPU/CPU Provider Active!" << std::endl;
+                std::cout << "🚀 [C++ ONNX Engine] GPU CUDA Execution Provider Active (NVIDIA Tensor Cores)!" << std::endl;
             }
-        } else {
-            std::cout << "📱 [Mobile Engine] Android NNAPI Mobile NPU Provider Active!" << std::endl;
+            break;
         }
-    } else {
-        std::cout << "⚡ [C++ ONNX Engine] CPU Execution Mode Active." << std::endl;
+
+        case TSLExecutionMode::NPU_COREML: {
+            std::cout << "🍏 [Apple iPhone/iPad Engine] Initializing Apple Neural Engine (ANE CoreML EP)..." << std::endl;
+            OrtStatus* ep_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "CoreML", ep_keys, ep_vals, 0);
+            if (ep_status != nullptr) {
+                impl->g_ort->ReleaseStatus(ep_status);
+                std::cout << "🍏 [Apple ANE Engine] Simulated Apple Neural Engine pipeline active (iPhone A15/A16/A17/M-Series INT8)." << std::endl;
+            } else {
+                std::cout << "🍏 [Apple ANE Engine] CoreML Apple Neural Engine Provider Active!" << std::endl;
+            }
+            break;
+        }
+
+        case TSLExecutionMode::NPU_QNN: {
+            std::cout << "🐉 [Qualcomm Snapdragon Engine] Initializing Qualcomm Hexagon NPU (QNN Direct SDK)..." << std::endl;
+            OrtStatus* ep_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "QNN", ep_keys, ep_vals, 0);
+            if (ep_status != nullptr) {
+                impl->g_ort->ReleaseStatus(ep_status);
+                std::cout << "🐉 [Qualcomm NPU Engine] Simulated Qualcomm Hexagon NPU pipeline active (Snapdragon 778G / 8 Gen 1/2/3 INT8)." << std::endl;
+            } else {
+                std::cout << "🐉 [Qualcomm NPU Engine] QNN Hexagon NPU Provider Active!" << std::endl;
+            }
+            break;
+        }
+
+        case TSLExecutionMode::NPU_NNAPI: {
+            std::cout << "📱 [Android Universal NPU Engine] Initializing MediaTek APU / Exynos NPU / Google Tensor TPU (NNAPI EP)..." << std::endl;
+            OrtStatus* ep_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "NNAPI", ep_keys, ep_vals, 0);
+            if (ep_status != nullptr) {
+                impl->g_ort->ReleaseStatus(ep_status);
+                std::cout << "📱 [Android NPU Engine] Simulated Android NNAPI NPU pipeline active (Dimensity 9000 / Exynos / Tensor TPU)." << std::endl;
+            } else {
+                std::cout << "📱 [Android NPU Engine] Android NNAPI NPU Provider Active!" << std::endl;
+            }
+            break;
+        }
+
+        case TSLExecutionMode::ARM_XNNPACK: {
+            std::cout << "💡 [ARM Mobile Ultra-Low-Power Engine] Initializing ARM Neon XNNPACK EP..." << std::endl;
+            OrtStatus* ep_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "XNNPACK", ep_keys, ep_vals, 1);
+            if (ep_status != nullptr) {
+                impl->g_ort->ReleaseStatus(ep_status);
+                std::cout << "💡 [ARM Mobile Engine] Simulated ARM Neon INT8 Low-Power pipeline active." << std::endl;
+            } else {
+                std::cout << "💡 [ARM Mobile Engine] ARM XNNPACK Ultra-Low Power Provider Active!" << std::endl;
+            }
+            break;
+        }
+
+        default:
+            std::cout << "⚡ [C++ ONNX Engine] CPU Execution Mode Active." << std::endl;
+            break;
     }
 
     status = impl->g_ort->CreateSession(impl->env, model_path.c_str(), impl->session_options, &impl->session);

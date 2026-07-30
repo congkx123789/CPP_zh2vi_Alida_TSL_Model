@@ -27,8 +27,14 @@ int main(int argc, char* argv[]) {
             run_benchmark = true;
         } else if (std::strcmp(argv[i], "--gpu") == 0 || std::strcmp(argv[i], "--cuda") == 0) {
             mode = TSLExecutionMode::GPU_CUDA;
-        } else if (std::strcmp(argv[i], "--npu") == 0 || std::strcmp(argv[i], "--nnapi") == 0 || std::strcmp(argv[i], "--mobile") == 0) {
-            mode = TSLExecutionMode::NPU_MOBILE;
+        } else if (std::strcmp(argv[i], "--ane") == 0 || std::strcmp(argv[i], "--coreml") == 0 || std::strcmp(argv[i], "--iphone") == 0) {
+            mode = TSLExecutionMode::NPU_COREML;
+        } else if (std::strcmp(argv[i], "--qnn") == 0 || std::strcmp(argv[i], "--snapdragon") == 0) {
+            mode = TSLExecutionMode::NPU_QNN;
+        } else if (std::strcmp(argv[i], "--npu") == 0 || std::strcmp(argv[i], "--nnapi") == 0 || std::strcmp(argv[i], "--android") == 0) {
+            mode = TSLExecutionMode::NPU_NNAPI;
+        } else if (std::strcmp(argv[i], "--arm") == 0 || std::strcmp(argv[i], "--xnnpack") == 0) {
+            mode = TSLExecutionMode::ARM_XNNPACK;
         } else if (std::strcmp(argv[i], "--cpu") == 0) {
             mode = TSLExecutionMode::CPU;
         } else if (input_text.empty() && argv[i][0] != '-') {
@@ -44,8 +50,11 @@ int main(int argc, char* argv[]) {
 
     if (run_benchmark) {
         std::string mode_name = "CPU MODE";
-        if (mode == TSLExecutionMode::GPU_CUDA) mode_name = "GPU CUDA BATCHING";
-        else if (mode == TSLExecutionMode::NPU_MOBILE) mode_name = "MOBILE NPU SIMULATION (NNAPI/XNNPACK)";
+        if (mode == TSLExecutionMode::GPU_CUDA) mode_name = "GPU CUDA TENSOR CORES";
+        else if (mode == TSLExecutionMode::NPU_COREML) mode_name = "APPLE NEURAL ENGINE (ANE CoreML)";
+        else if (mode == TSLExecutionMode::NPU_QNN) mode_name = "QUALCOMM SNAPDRAGON HEXAGON NPU (QNN SDK)";
+        else if (mode == TSLExecutionMode::NPU_NNAPI) mode_name = "ANDROID UNIVERSAL NPU (NNAPI: MediaTek APU/Exynos/Tensor)";
+        else if (mode == TSLExecutionMode::ARM_XNNPACK) mode_name = "ARM MOBILE LOW-POWER ENGINE (XNNPACK)";
 
         std::cout << "\n================================================================================" << std::endl;
         std::cout << "🚀 CHƯƠNG TRÌNH BENCHMARK TỐC ĐỘ NGUYÊN BẢN C++ (" << mode_name << ")" << std::endl;
