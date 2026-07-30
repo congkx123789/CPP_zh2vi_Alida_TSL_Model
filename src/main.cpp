@@ -13,6 +13,7 @@ int main(int argc, char* argv[]) {
     std::string input_file = "";
     std::string output_file = "";
     bool run_benchmark = false;
+    bool run_test_suite = false;
     TSLExecutionMode mode = TSLExecutionMode::CPU;
     TSLPerformanceMode perf_mode = TSLPerformanceMode::MAX_PERFORMANCE;
 
@@ -27,6 +28,8 @@ int main(int argc, char* argv[]) {
             base_dir = argv[++i];
         } else if (std::strcmp(argv[i], "--benchmark") == 0) {
             run_benchmark = true;
+        } else if (std::strcmp(argv[i], "--test") == 0 || std::strcmp(argv[i], "--suite") == 0) {
+            run_test_suite = true;
         } else if (std::strcmp(argv[i], "--gpu") == 0 || std::strcmp(argv[i], "--cuda") == 0) {
             mode = TSLExecutionMode::GPU_CUDA;
             if (i + 1 < argc && argv[i + 1][0] != '-') input_text = argv[++i];
@@ -62,6 +65,52 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
+    std::vector<std::string> test_suite_sentences = {
+        "掌柜在门前等他",
+        "一言既出，驷马难追",
+        "三三两两的人群",
+        "5000两白银",
+        "一头扎进九层楼",
+        "李云飞大怒道：“掌柜在门前等他，一言既出，驷马难追！”",
+        "第三百五十六章 5000两白银!",
+        "他一头扎进九层楼，向前方走去。",
+        "修仙者的路是极其艰难的，他经历了无数的磨难。",
+        "他拿起了宗门的飞剑，快步地走了。",
+        "叶凡盘膝而坐，运转体内极其雄厚的元力。",
+        "这株千年灵药乃是不可多得的稀世珍宝。",
+        "长老高声道：“今日乃是宗门大比之日！”",
+        "虚空中无尽的雷劫疯狂地下落。",
+        "经过漫长的修炼，他终于成功突破到了金丹境界。",
+        "他服下了一枚九品洗髓丹。",
+        "城门外聚集了成千上万的修仙者。",
+        "林枫淡然一笑：“就凭你这三脚猫的功夫？”",
+        "一道刺眼的剑光划破了长空。",
+        "天地万物皆在这一刻静止了。"
+    };
+
+    if (run_test_suite) {
+        std::cout << "\n================================================================================" << std::endl;
+        std::cout << "🧪 CHẠY BỘ TEST SUITE 20 CÂU TIỂU THUYẾT TIÊN HIỆP ĐA DẠNG (GPU / NPU / CPU)" << std::endl;
+        std::cout << "================================================================================" << std::endl;
+
+        auto t0 = std::chrono::high_resolution_clock::now();
+        std::vector<std::string> results = translator.translate_batch(test_suite_sentences, 0);
+        auto t1 = std::chrono::high_resolution_clock::now();
+
+        double total_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+
+        for (size_t i = 0; i < test_suite_sentences.size(); ++i) {
+            std::cout << "[" << std::setw(2) << (i + 1) << "] 🇨🇳 GỐC : " << test_suite_sentences[i] << std::endl;
+            std::cout << "     🇻🇳 DỊCH: " << results[i] << "\n" << std::endl;
+        }
+
+        std::cout << "--------------------------------------------------------------------------------" << std::endl;
+        std::cout << "✅ Đã dịch thành công 20 câu trong " << std::setprecision(3) << (total_ms / 1000.0) << "s ("
+                  << std::setprecision(1) << (total_ms / test_suite_sentences.size()) << " ms/câu)" << std::endl;
+        std::cout << "================================================================================\n" << std::endl;
+        return 0;
+    }
+
     if (run_benchmark) {
         std::string mode_name = "CPU MODE";
         if (mode == TSLExecutionMode::GPU_CUDA) mode_name = "NVIDIA GPU CUDA TENSOR CORES (sm_120 Target)";
@@ -74,30 +123,17 @@ int main(int argc, char* argv[]) {
         std::cout << "🚀 PHÂN TÍCH CHUYÊN SÂU TẢI PHẦN CỨNG 3 CHẾ ĐỘ HIỆU NĂNG (ECO / NORMAL / MAX)" << std::endl;
         std::cout << "================================================================================" << std::endl;
 
-        std::vector<std::string> base_sentences = {
-            "掌柜在门前等他",
-            "一言既出，驷马难追",
-            "三三两两的人群",
-            "5000两白银",
-            "一头扎进九层楼",
-            "李云飞大怒道：“掌柜在门前等 hắn，一言既出，驷马难追！”",
-            "第三百五十六章 5000两白银!",
-            " hắn 一头扎进九层楼，向前方走去。",
-            "修仙者的路是极其艰难的，他经历了无数的磨难。",
-            "他拿起了宗门的飞剑，快步地走了。"
-        };
-
         int total_runs = 1000;
         std::vector<std::string> test_sentences(total_runs);
         for (int r = 0; r < total_runs; ++r) {
-            test_sentences[r] = base_sentences[r % base_sentences.size()];
+            test_sentences[r] = test_suite_sentences[r % test_suite_sentences.size()];
         }
 
         // Sequential Single Sentence Test
         int seq_runs = 100;
         auto t0 = std::chrono::high_resolution_clock::now();
         for (int r = 0; r < seq_runs; ++r) {
-            translator.translate(base_sentences[r % base_sentences.size()]);
+            translator.translate(test_suite_sentences[r % test_suite_sentences.size()]);
         }
         auto t1 = std::chrono::high_resolution_clock::now();
         double seq_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
