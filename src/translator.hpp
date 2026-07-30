@@ -41,23 +41,27 @@ public:
     std::string translate(const std::string& text_zh);
 
     /**
-     * @brief Dịch song song một mảng danh sách các câu trên GPU CUDA / NPU
+     * @brief Dịch song song một mảng danh sách các câu với Batch Size tự động thích ứng phần cứng
      * @param texts_zh Danh sách các câu tiếng Trung
-     * @param batch_size Kích thước Batch GPU/NPU (mặc định: 256)
+     * @param batch_size Kích thước Batch (mặc định: 0 = Tự động tối ưu theo GPU/NPU)
      * @return Mảng danh sách các câu tiếng Việt tương ứng
      */
-    std::vector<std::string> translate_batch(const std::vector<std::string>& texts_zh, size_t batch_size = 256);
+    std::vector<std::string> translate_batch(const std::vector<std::string>& texts_zh, size_t batch_size = 0);
 
     /**
      * @brief Dịch theo cơ chế Pipeline Đôi (Double-Buffering Async Pipelining)
-     * Giúp GPU và CPU chạy đồng thời 100% không triệt tiêu thời gian chờ nhau.
      */
-    std::vector<std::string> translate_batch_pipelined(const std::vector<std::string>& texts_zh, size_t batch_size = 128);
+    std::vector<std::string> translate_batch_pipelined(const std::vector<std::string>& texts_zh, size_t batch_size = 0);
 
     /**
      * @brief Đo chi tiết từng Trạm (Bottleneck Profiling) để tìm chính xác điểm nghẽn hiệu năng
      */
     std::vector<std::string> translate_batch_profiled(const std::vector<std::string>& texts_zh, size_t batch_size, double& out_p1_ms, double& out_p2_ms, double& out_p3_ms);
+
+    /**
+     * @brief Tính toán Batch Size tối ưu tự động dựa theo loại phần cứng và số lượng câu
+     */
+    size_t get_adaptive_batch_size(size_t total_sentences) const;
 
 private:
     void warmup();
@@ -66,6 +70,7 @@ private:
     VietphraseTrie trie;
     ONNXInferenceEngine onnx_engine;
     std::unique_ptr<LogitsProcessor> logits_processor;
+    TSLExecutionMode exec_mode;
     bool is_ready;
 };
 

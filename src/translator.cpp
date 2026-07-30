@@ -6,10 +6,11 @@
 #include <future>
 #include <omp.h>
 
-TSLTranslator::TSLTranslator() : is_ready(false) {}
+TSLTranslator::TSLTranslator() : exec_mode(TSLExecutionMode::CPU), is_ready(false) {}
 TSLTranslator::~TSLTranslator() {}
 
 bool TSLTranslator::init(const std::string& base_dir, TSLExecutionMode mode) {
+    exec_mode = mode;
     std::cout << "⚡ Initializing Alida TSL Native C++ Translation Engine..." << std::endl;
 
     std::string data_dir = base_dir + "/data";
@@ -63,6 +64,26 @@ void TSLTranslator::warmup() {
     std::cout << "✅ Warmup Finished in " << ms << " ms! Engine ready for zero-latency translation." << std::endl;
 }
 
+size_t TSLTranslator::get_adaptive_batch_size(size_t total_sentences) const {
+    if (total_sentences <= 1) return 1;
+
+    switch (exec_mode) {
+        case TSLExecutionMode::GPU_CUDA:
+            return (total_sentences < 128) ? total_sentences : 128; // Optimal VRAM Arena size for GPU Tensor Cores
+
+        case TSLExecutionMode::NPU_COREML:
+        case TSLExecutionMode::NPU_QNN:
+        case TSLExecutionMode::NPU_NNAPI:
+            return (total_sentences < 32) ? total_sentences : 32;   // Optimal SRAM size for Mobile NPUs
+
+        case TSLExecutionMode::ARM_XNNPACK:
+            return (total_sentences < 16) ? total_sentences : 16;   // Optimal Neon SIMD size for ARM CPU
+
+        default:
+            return (total_sentences < 64) ? total_sentences : 64;   // Optimal x86_64 CPU thread pool size
+    }
+}
+
 std::string TSLTranslator::translate(const std::string& text_zh) {
     if (!is_ready || text_zh.empty()) return "";
 
@@ -98,6 +119,10 @@ struct BatchData {
 std::vector<std::string> TSLTranslator::translate_batch_pipelined(const std::vector<std::string>& texts_zh, size_t batch_size) {
     std::vector<std::string> results(texts_zh.size());
     if (!is_ready || texts_zh.empty()) return results;
+
+    if (batch_size == 0) {
+        batch_size = get_adaptive_batch_size(texts_zh.size());
+    }
 
     size_t total_sentences = texts_zh.size();
     size_t num_batches = (total_sentences + batch_size - 1) / batch_size;
@@ -158,6 +183,10 @@ std::vector<std::string> TSLTranslator::translate_batch_pipelined(const std::vec
 std::vector<std::string> TSLTranslator::translate_batch_profiled(const std::vector<std::string>& texts_zh, size_t batch_size, double& out_p1_ms, double& out_p2_ms, double& out_p3_ms) {
     std::vector<std::string> results(texts_zh.size());
     if (!is_ready || texts_zh.empty()) return results;
+
+    if (batch_size == 0) {
+        batch_size = get_adaptive_batch_size(texts_zh.size());
+    }
 
     out_p1_ms = 0.0;
     out_p2_ms = 0.0;
