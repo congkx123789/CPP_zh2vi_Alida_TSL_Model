@@ -73,8 +73,21 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
 
             OrtStatus* cuda_status = impl->g_ort->SessionOptionsAppendExecutionProvider_CUDA(impl->session_options, &cuda_options);
             if (cuda_status != nullptr) {
-                std::cout << "⚠️ Warning: Failed to enable CUDA Provider (" << impl->g_ort->GetErrorMessage(cuda_status) << "). Falling back to CPU Mode." << std::endl;
                 impl->g_ort->ReleaseStatus(cuda_status);
+                // Try Windows DirectML GPU Provider (NVIDIA GeForce MX330 / Intel Iris Xe / DirectX 12)
+                const char* dml_keys[] = {"device_id"};
+                const char* dml_vals[] = {"0"};
+                OrtStatus* dml_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "DML", dml_keys, dml_vals, 1);
+                if (dml_status != nullptr) {
+                    impl->g_ort->ReleaseStatus(dml_status);
+                    dml_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "DirectML", dml_keys, dml_vals, 1);
+                }
+                if (dml_status != nullptr) {
+                    impl->g_ort->ReleaseStatus(dml_status);
+                    std::cout << "⚠️ Warning: Failed to enable GPU Providers. Falling back to CPU Mode." << std::endl;
+                } else {
+                    std::cout << "🎮 [Windows DirectX 12 GPU Engine] DirectML GPU Execution Provider Active [" << perf_name << "] (NVIDIA GeForce MX330 / Intel Iris Xe Target)!" << std::endl;
+                }
             } else {
                 std::cout << "🚀 [C++ ONNX Engine] GPU CUDA Execution Provider Active [" << perf_name << "] (sm_120 Blackwell Architecture RTX 50-Series Target)!" << std::endl;
             }

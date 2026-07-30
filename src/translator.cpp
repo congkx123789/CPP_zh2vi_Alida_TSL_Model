@@ -72,9 +72,9 @@ size_t TSLTranslator::get_adaptive_batch_size(size_t total_sentences) const {
 
     switch (exec_mode) {
         case TSLExecutionMode::GPU_CUDA:
-            if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) target_batch = 32;
-            else if (perf_mode == TSLPerformanceMode::BALANCED_NORMAL) target_batch = 64;
-            else target_batch = 128; // MAX_PERFORMANCE
+            if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) target_batch = 16;
+            else if (perf_mode == TSLPerformanceMode::BALANCED_NORMAL) target_batch = 32;
+            else target_batch = 32; // Optimized for DirectML 2GB VRAM (NVIDIA MX330 / Intel Iris Xe)
             break;
 
         case TSLExecutionMode::NPU_COREML:
