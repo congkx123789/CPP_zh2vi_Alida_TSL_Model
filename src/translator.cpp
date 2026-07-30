@@ -68,28 +68,37 @@ void TSLTranslator::warmup() {
 size_t TSLTranslator::get_adaptive_batch_size(size_t total_sentences) const {
     if (total_sentences <= 1) return 1;
 
-    if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) {
-        return std::min<size_t>(total_sentences, 16); // Batch 16 low-power for battery saving
-    } else if (perf_mode == TSLPerformanceMode::BALANCED_NORMAL) {
-        return std::min<size_t>(total_sentences, 64); // Batch 64 normal balanced mode
-    }
+    size_t target_batch = 64;
 
-    // MAX_PERFORMANCE MODE
     switch (exec_mode) {
         case TSLExecutionMode::GPU_CUDA:
-            return (total_sentences < 128) ? total_sentences : 128; // Optimal VRAM Arena size for GPU Tensor Cores
+            if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) target_batch = 32;
+            else if (perf_mode == TSLPerformanceMode::BALANCED_NORMAL) target_batch = 64;
+            else target_batch = 128; // MAX_PERFORMANCE
+            break;
 
         case TSLExecutionMode::NPU_COREML:
         case TSLExecutionMode::NPU_QNN:
         case TSLExecutionMode::NPU_NNAPI:
-            return (total_sentences < 32) ? total_sentences : 32;   // Optimal SRAM size for Mobile NPUs
+            if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) target_batch = 8;
+            else if (perf_mode == TSLPerformanceMode::BALANCED_NORMAL) target_batch = 16;
+            else target_batch = 32;  // MAX_PERFORMANCE
+            break;
 
         case TSLExecutionMode::ARM_XNNPACK:
-            return (total_sentences < 16) ? total_sentences : 16;   // Optimal Neon SIMD size for ARM CPU
+            if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) target_batch = 8;
+            else if (perf_mode == TSLPerformanceMode::BALANCED_NORMAL) target_batch = 16;
+            else target_batch = 32;  // MAX_PERFORMANCE
+            break;
 
-        default:
-            return (total_sentences < 128) ? total_sentences : 128; // Optimal x86_64 CPU thread pool size
+        default: // CPU Mode
+            if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) target_batch = 16;
+            else if (perf_mode == TSLPerformanceMode::BALANCED_NORMAL) target_batch = 32;
+            else target_batch = 64;  // MAX_PERFORMANCE
+            break;
     }
+
+    return std::min<size_t>(total_sentences, target_batch);
 }
 
 std::string TSLTranslator::translate(const std::string& text_zh) {
