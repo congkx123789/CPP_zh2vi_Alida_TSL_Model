@@ -93,7 +93,6 @@ bool LogitsProcessor::load_hv_dict(const std::string& hv_dict_path) {
 
         while (std::getline(ss, item, '/')) {
             item = trim_str(item);
-            if (item.empty()) continue;
             if (!seen.count(item)) {
                 seen.insert(item);
                 unique_cands.push_back(item);
@@ -182,12 +181,20 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
                 const auto& cands = hv_char_list.at(char_zh);
 
                 for (const auto& cand : cands) {
-                    auto it = tokenizer.vi2idx.find(cand);
-                    if (it != tokenizer.vi2idx.end()) {
-                        float score = get_slice_prob(w_min, w_max, it->second);
+                    if (cand.empty()) {
+                        float score = -2.5f;
                         if (score > max_cand_score) {
                             max_cand_score = score;
-                            best_cand = cand;
+                            best_cand = "";
+                        }
+                    } else {
+                        auto it = tokenizer.vi2idx.find(cand);
+                        if (it != tokenizer.vi2idx.end()) {
+                            float score = get_slice_prob(w_min, w_max, it->second);
+                            if (score > max_cand_score) {
+                                max_cand_score = score;
+                                best_cand = cand;
+                            }
                         }
                     }
                 }
@@ -197,6 +204,14 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
                 std::string best_cand = meanings[0];
 
                 for (const auto& cand : meanings) {
+                    if (cand.empty()) {
+                        float score = -2.5f;
+                        if (score > max_cand_score) {
+                            max_cand_score = score;
+                            best_cand = "";
+                        }
+                        continue;
+                    }
                     float max_ai_prob = -1e9f;
                     size_t start = 0;
                     while (start < cand.size()) {
@@ -233,34 +248,41 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
             std::string best_hv = char_zh;
             if (hv_map.count(char_zh)) {
                 const std::string& hv_val = hv_map.at(char_zh);
-                size_t slash_pos = hv_val.find('/');
-                if (slash_pos == std::string::npos) {
-                    best_hv = hv_val;
-                } else {
-                    int w_min = std::max(0, (int)(i * ((double)seq_len / std::max(n_zh, 1))) - 2);
-                    int w_max = std::min(seq_len, (int)((i + 1) * ((double)seq_len / std::max(n_zh, 1))) + 3);
+                if (hv_val.empty()) {
+                    best_hv = "";
+                } else if (hv_char_list.count(char_zh) > 0) {
+                    const auto& cands = hv_char_list.at(char_zh);
+                    if (cands.size() == 1) {
+                        best_hv = cands[0];
+                    } else {
+                        int w_min = std::max(0, (int)(i * ((double)seq_len / std::max(n_zh, 1))) - 2);
+                        int w_max = std::min(seq_len, (int)((i + 1) * ((double)seq_len / std::max(n_zh, 1))) + 3);
 
-                    float max_cand_score = -1e9f;
-                    best_hv = hv_val.substr(0, slash_pos);
+                        float max_cand_score = -1e9f;
+                        best_hv = cands[0];
 
-                    size_t start = 0;
-                    while (start < hv_val.size()) {
-                        while (start < hv_val.size() && (hv_val[start] == '/' || hv_val[start] == ' ')) start++;
-                        if (start >= hv_val.size()) break;
-                        size_t end = start;
-                        while (end < hv_val.size() && hv_val[end] != '/' && hv_val[end] != ' ') end++;
-                        std::string cand = hv_val.substr(start, end - start);
-                        start = end;
-
-                        auto it = tokenizer.vi2idx.find(cand);
-                        if (it != tokenizer.vi2idx.end()) {
-                            float score = get_slice_prob(w_min, w_max, it->second);
-                            if (score > max_cand_score) {
-                                max_cand_score = score;
-                                best_hv = cand;
+                        for (const auto& cand : cands) {
+                            if (cand.empty()) {
+                                float score = -2.5f;
+                                if (score > max_cand_score) {
+                                    max_cand_score = score;
+                                    best_hv = "";
+                                }
+                            } else {
+                                auto it = tokenizer.vi2idx.find(cand);
+                                if (it != tokenizer.vi2idx.end()) {
+                                    float score = get_slice_prob(w_min, w_max, it->second);
+                                    if (score > max_cand_score) {
+                                        max_cand_score = score;
+                                        best_hv = cand;
+                                    }
+                                }
                             }
                         }
                     }
+                } else {
+                    size_t slash_pos = hv_val.find('/');
+                    best_hv = (slash_pos == std::string::npos) ? hv_val : hv_val.substr(0, slash_pos);
                 }
             }
 
@@ -269,9 +291,10 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
         }
     }
 
-    // Deduplicate and format output
+    // Deduplicate consecutive words (ignoring empty omitted words)
     std::vector<std::string> res;
     for (const auto& w : final_words) {
+        if (w.empty()) continue;
         if (res.empty() || res.back() != w) {
             res.push_back(w);
         }
@@ -283,52 +306,102 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
         out += res[k];
     }
 
-    // Post-formatting punctuation spacing (manual, no regex needed)
-    static const std::unordered_set<std::string> punct_after = {
-        "，","。","！","？","；","：","、","\xe2\x80\x9d","\xe2\x80\x9d","》","】","…","—","–",",","!","?",":",";","）",")"
-    };
-    static const std::unordered_set<std::string> punct_open = {
-        "\xe2\x80\x9c","《","【","（","("
-    };
-
-    // Remove spaces before closing/middle punctuation and after opening punctuation
-    std::string cleaned;
-    std::vector<std::string> out_chars;
-    {
-        size_t p = 0;
-        while (p < out.size()) {
-            unsigned char c = (unsigned char)out[p];
-            size_t clen = 1;
-            if ((c & 0x80) == 0) clen = 1;
-            else if ((c & 0xE0) == 0xC0) clen = 2;
-            else if ((c & 0xF0) == 0xE0) clen = 3;
-            else if ((c & 0xF8) == 0xF0) clen = 4;
-            if (p + clen <= out.size()) out_chars.push_back(out.substr(p, clen));
-            p += clen;
+    // Convert Chinese Full-Width Punctuation to Standard Vietnamese Typography
+    std::string norm = "";
+    size_t idx = 0;
+    while (idx < out.size()) {
+        unsigned char c = (unsigned char)out[idx];
+        if (c == 0xE3 && idx + 2 < out.size()) {
+            unsigned char c2 = (unsigned char)out[idx+1];
+            unsigned char c3 = (unsigned char)out[idx+2];
+            if (c2 == 0x80 && c3 == 0x90) { norm += "\""; idx += 3; continue; } // 【 -> "
+            if (c2 == 0x80 && c3 == 0x91) { norm += "\""; idx += 3; continue; } // 】 -> "
+            if (c2 == 0x80 && c3 == 0x8A) { norm += "\""; idx += 3; continue; } // 《 -> "
+            if (c2 == 0x80 && c3 == 0x8B) { norm += "\""; idx += 3; continue; } // 》 -> "
+            if (c2 == 0x80 && c3 == 0x8E) { norm += "\""; idx += 3; continue; } // 『 -> "
+            if (c2 == 0x80 && c3 == 0x8F) { norm += "\""; idx += 3; continue; } // 』 -> "
+            if (c2 == 0x80 && c3 == 0x88) { norm += "\""; idx += 3; continue; } // 「 -> "
+            if (c2 == 0x80 && c3 == 0x89) { norm += "\""; idx += 3; continue; } // 」 -> "
+            if (c2 == 0x80 && c3 == 0x82) { norm += ".";  idx += 3; continue; } // 。 -> .
+            if (c2 == 0x80 && c3 == 0x81) { norm += ",";  idx += 3; continue; } // 、 -> ,
+        } else if (c == 0xEF && idx + 2 < out.size()) {
+            unsigned char c2 = (unsigned char)out[idx+1];
+            unsigned char c3 = (unsigned char)out[idx+2];
+            if (c2 == 0xBC && c3 == 0x8C) { norm += ","; idx += 3; continue; } // ， -> ,
+            if (c2 == 0xBC && c3 == 0x9A) { norm += ":"; idx += 3; continue; } // ： -> :
+            if (c2 == 0xBC && c3 == 0x9B) { norm += ";"; idx += 3; continue; } // ； -> ;
+            if (c2 == 0xBC && c3 == 0x9F) { norm += "?"; idx += 3; continue; } // ？ -> ?
+            if (c2 == 0xBC && c3 == 0x81) { norm += "!"; idx += 3; continue; } // ！ -> !
+            if (c2 == 0xBC && c3 == 0x88) { norm += "("; idx += 3; continue; } // （ -> (
+            if (c2 == 0xBC && c3 == 0x89) { norm += ")"; idx += 3; continue; } // ） -> )
+        } else if (c == 0xE2 && idx + 2 < out.size()) {
+            unsigned char c2 = (unsigned char)out[idx+1];
+            unsigned char c3 = (unsigned char)out[idx+2];
+            if (c2 == 0x80 && (c3 == 0x9C || c3 == 0x9D)) { norm += "\""; idx += 3; continue; } // “ ” -> "
+            if (c2 == 0x80 && (c3 == 0x98 || c3 == 0x99)) { norm += "'";  idx += 3; continue; } // ‘ ’ -> '
+            if (c2 == 0x80 && c3 == 0xA6) { norm += "..."; idx += 3; continue; } // … -> ...
         }
+        norm += out[idx];
+        idx++;
     }
 
-    for (size_t ci = 0; ci < out_chars.size(); ++ci) {
-        const std::string& ch = out_chars[ci];
-        if (ch == " ") {
-            // Look ahead: skip space if next non-space char is closing punct
-            size_t next = ci + 1;
-            while (next < out_chars.size() && out_chars[next] == " ") next++;
-            if (next < out_chars.size() && punct_after.count(out_chars[next])) continue;
-            // Look behind: skip space if previous non-space char is opening punct
-            if (!cleaned.empty()) {
-                // Get last char of cleaned
-                size_t lp = cleaned.size();
-                size_t llen = 1;
-                if (lp >= 4 && ((unsigned char)cleaned[lp-4] & 0xF8) == 0xF0) llen = 4;
-                else if (lp >= 3 && ((unsigned char)cleaned[lp-3] & 0xF0) == 0xE0) llen = 3;
-                else if (lp >= 2 && ((unsigned char)cleaned[lp-2] & 0xE0) == 0xC0) llen = 2;
-                std::string last_ch = cleaned.substr(lp - llen);
-                if (punct_open.count(last_ch)) continue;
-            }
+    // Clean up spacing around punctuation
+    std::string cleaned = "";
+    static const std::unordered_set<char> punct_close_c = { ',', '.', ':', ';', '?', '!', ')' };
+
+    for (size_t k = 0; k < norm.size(); ++k) {
+        char ch = norm[k];
+        if (ch == ' ') {
+            if (k + 1 < norm.size() && punct_close_c.count(norm[k+1])) continue;
+            if (!cleaned.empty() && cleaned.back() == '(') continue;
         }
         cleaned += ch;
     }
 
-    return cleaned;
+    // Capitalize first letter of each sentence (. ? ! " or start of line)
+    std::string capitalized = "";
+    bool cap_next = true;
+    size_t ci = 0;
+    while (ci < cleaned.size()) {
+        unsigned char c = (unsigned char)cleaned[ci];
+        size_t clen = 1;
+        if ((c & 0x80) == 0) clen = 1;
+        else if ((c & 0xE0) == 0xC0) clen = 2;
+        else if ((c & 0xF0) == 0xE0) clen = 3;
+        else if ((c & 0xF8) == 0xF0) clen = 4;
+
+        std::string char_str = cleaned.substr(ci, clen);
+        ci += clen;
+
+        if (cap_next) {
+            if (c >= 'a' && c <= 'z') {
+                char_str[0] = (char)std::toupper(c);
+                cap_next = false;
+            } else if (c >= 'A' && c <= 'Z') {
+                cap_next = false;
+            } else if (clen > 1) {
+                if (char_str == "đ") char_str = "Đ";
+                else if (char_str == "à") char_str = "À";
+                else if (char_str == "á") char_str = "Á";
+                else if (char_str == "ả") char_str = "Ả";
+                else if (char_str == "ã") char_str = "Ã";
+                else if (char_str == "ạ") char_str = "Ạ";
+                else if (char_str == "ă") char_str = "Ă";
+                else if (char_str == "â") char_str = "Â";
+                else if (char_str == "ê") char_str = "Ê";
+                else if (char_str == "ô") char_str = "Ô";
+                else if (char_str == "ơ") char_str = "Ơ";
+                else if (char_str == "ư") char_str = "Ư";
+                cap_next = false;
+            }
+        }
+
+        if (char_str == "." || char_str == "?" || char_str == "!" || char_str == "\"" || char_str == "\n") {
+            cap_next = true;
+        }
+
+        capitalized += char_str;
+    }
+
+    return capitalized;
 }
