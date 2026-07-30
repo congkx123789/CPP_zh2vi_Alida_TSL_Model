@@ -1,7 +1,8 @@
 #include "tokenizer.hpp"
 #include <fstream>
 #include <iostream>
-#include <cstring>
+#include <sstream>
+#include <algorithm>
 
 static std::vector<std::string> get_utf8_chars(const std::string& str) {
     std::vector<std::string> chars;
@@ -24,18 +25,15 @@ static std::vector<std::string> get_utf8_chars(const std::string& str) {
     return chars;
 }
 
-TranslationTokenizer::TranslationTokenizer()
-    : pad_id(0), unk_id(1), bos_id(2), eos_id(3), is_loaded(false) {}
-
+TranslationTokenizer::TranslationTokenizer() : is_loaded(false), pad_id(0), unk_id(1), bos_id(2), eos_id(3) {}
 TranslationTokenizer::~TranslationTokenizer() {}
 
 bool TranslationTokenizer::load(const std::string& data_dir) {
-    std::string zh_path = data_dir + "/zh_vocab.bin";
-    std::string vi_path = data_dir + "/vi_vocab.bin";
+    std::string zh_vocab_path = data_dir + "/zh_vocab.bin";
+    std::string vi_vocab_path = data_dir + "/vi_vocab.bin";
 
-    // Read zh_vocab.bin
     {
-        std::ifstream f(zh_path, std::ios::binary);
+        std::ifstream f(zh_vocab_path, std::ios::binary);
         if (!f.is_open()) return false;
         uint32_t count = 0;
         f.read((char*)&count, 4);
@@ -51,9 +49,8 @@ bool TranslationTokenizer::load(const std::string& data_dir) {
         }
     }
 
-    // Read vi_vocab.bin
     {
-        std::ifstream f(vi_path, std::ios::binary);
+        std::ifstream f(vi_vocab_path, std::ios::binary);
         if (!f.is_open()) return false;
         uint32_t count = 0;
         f.read((char*)&count, 4);
@@ -91,6 +88,12 @@ std::vector<int64_t> TranslationTokenizer::encode_zh(const std::string& text, in
             tokens.push_back(unk_id);
         }
     }
+
+    // Pad to exact max_len for ONNX Tensor input shape alignment
+    while ((int)tokens.size() < max_len) {
+        tokens.push_back(pad_id);
+    }
+
     return tokens;
 }
 

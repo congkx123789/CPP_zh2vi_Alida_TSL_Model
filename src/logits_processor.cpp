@@ -5,7 +5,6 @@
 #include <cmath>
 #include <algorithm>
 
-
 static std::vector<std::string> get_utf8_chars_lp(const std::string& str) {
     std::vector<std::string> chars;
     size_t i = 0;
@@ -64,9 +63,11 @@ bool LogitsProcessor::load_hv_dict(const std::string& hv_dict_path) {
             f.read((char*)&klen, 2);
             std::string key(klen, '\0');
             f.read(&key[0], klen);
+
             f.read((char*)&vlen, 2);
             std::string val(vlen, '\0');
             f.read(&val[0], vlen);
+
             raw_entries.emplace_back(key, val);
         }
     } else {
@@ -120,9 +121,9 @@ bool LogitsProcessor::is_redundant_repetition(const std::string& cand_word, cons
 }
 
 std::string LogitsProcessor::process_logits(const float* logits_data, int seq_len, int vocab_size,
-                                            const std::string& sentence_zh,
-                                            const std::vector<MatchInfo>& trie_matches,
-                                            float confidence_threshold) {
+                                             const std::string& sentence_zh,
+                                             const std::vector<MatchInfo>& trie_matches,
+                                             float confidence_threshold) {
     std::unordered_map<int, MatchInfo> trie_by_start;
     for (const auto& m : trie_matches) {
         trie_by_start[m.start] = m;
@@ -173,27 +174,31 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
             int w_min = std::max(0, (int)(i * ((double)seq_len / std::max(n_zh, 1))) - 2);
             int w_max = std::min(seq_len, (int)((i + phrase_len) * ((double)seq_len / std::max(n_zh, 1))) + 3);
 
-            std::string best_meaning = meanings[0];
+            std::string best_meaning = "";
+            if (meanings.size() == 1) {
+                const auto& cand = meanings[0];
+                std::string best_cand = cand;
 
-            if (phrase_len == 1 && hv_char_multi.count(char_zh) > 0 && hv_char_list.count(char_zh) > 0) {
-                float max_cand_score = -1e9f;
-                std::string best_cand = meanings[0];
-                const auto& cands = hv_char_list.at(char_zh);
+                if (hv_char_multi.count(cand) > 0) {
+                    const auto& cands = hv_char_list.at(cand);
+                    float max_cand_score = -1e9f;
+                    best_cand = cands[0];
 
-                for (const auto& cand : cands) {
-                    if (cand.empty()) {
-                        float score = -2.5f;
-                        if (score > max_cand_score) {
-                            max_cand_score = score;
-                            best_cand = "";
-                        }
-                    } else {
-                        auto it = tokenizer.vi2idx.find(cand);
-                        if (it != tokenizer.vi2idx.end()) {
-                            float score = get_slice_prob(w_min, w_max, it->second);
+                    for (const auto& c : cands) {
+                        if (c.empty()) {
+                            float score = -2.5f;
                             if (score > max_cand_score) {
                                 max_cand_score = score;
-                                best_cand = cand;
+                                best_cand = "";
+                            }
+                        } else {
+                            auto it = tokenizer.vi2idx.find(c);
+                            if (it != tokenizer.vi2idx.end()) {
+                                float score = get_slice_prob(w_min, w_max, it->second);
+                                if (score > max_cand_score) {
+                                    max_cand_score = score;
+                                    best_cand = c;
+                                }
                             }
                         }
                     }
@@ -237,16 +242,13 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
                 best_meaning = best_cand;
             }
 
-            if (is_redundant_repetition(best_meaning, final_words)) {
-                if (meanings.size() > 1) best_meaning = meanings[1];
+            if (!is_redundant_repetition(best_meaning, final_words)) {
+                final_words.push_back(best_meaning);
             }
-
-            final_words.push_back(best_meaning);
             i += phrase_len;
         } else {
-            // Hán Việt Fallback: 1 meaning -> direct O(1); >1 meanings -> AI Softmax max(P_AI)
             std::string best_hv = char_zh;
-            if (hv_map.count(char_zh)) {
+            if (hv_map.count(char_zh) > 0) {
                 const std::string& hv_val = hv_map.at(char_zh);
                 if (hv_val.empty()) {
                     best_hv = "";
@@ -291,7 +293,7 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
         }
     }
 
-    // Deduplicate consecutive words (ignoring empty omitted words)
+    // Deduplicate consecutive words
     std::vector<std::string> res;
     for (const auto& w : final_words) {
         if (w.empty()) continue;
@@ -302,63 +304,29 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
 
     std::string out = "";
     for (size_t k = 0; k < res.size(); ++k) {
-        if (k > 0) out += " ";
+        if (k > 0) {
+            const auto& prev = res[k - 1];
+            const auto& cur = res[k];
+            if (cur != "." && cur != "," && cur != ";" && cur != ":" && cur != "!" && cur != "?" &&
+                prev != "“" && prev != "(" && prev != "[" && cur != "”" && cur != ")" && cur != "]") {
+                out += " ";
+            }
+        }
         out += res[k];
     }
 
-    // Convert Chinese Full-Width Punctuation to Standard Vietnamese Typography
-    std::string norm = "";
-    size_t idx = 0;
-    while (idx < out.size()) {
-        unsigned char c = (unsigned char)out[idx];
-        if (c == 0xE3 && idx + 2 < out.size()) {
-            unsigned char c2 = (unsigned char)out[idx+1];
-            unsigned char c3 = (unsigned char)out[idx+2];
-            if (c2 == 0x80 && c3 == 0x90) { norm += "\""; idx += 3; continue; } // 【 -> "
-            if (c2 == 0x80 && c3 == 0x91) { norm += "\""; idx += 3; continue; } // 】 -> "
-            if (c2 == 0x80 && c3 == 0x8A) { norm += "\""; idx += 3; continue; } // 《 -> "
-            if (c2 == 0x80 && c3 == 0x8B) { norm += "\""; idx += 3; continue; } // 》 -> "
-            if (c2 == 0x80 && c3 == 0x8E) { norm += "\""; idx += 3; continue; } // 『 -> "
-            if (c2 == 0x80 && c3 == 0x8F) { norm += "\""; idx += 3; continue; } // 』 -> "
-            if (c2 == 0x80 && c3 == 0x88) { norm += "\""; idx += 3; continue; } // 「 -> "
-            if (c2 == 0x80 && c3 == 0x89) { norm += "\""; idx += 3; continue; } // 」 -> "
-            if (c2 == 0x80 && c3 == 0x82) { norm += ".";  idx += 3; continue; } // 。 -> .
-            if (c2 == 0x80 && c3 == 0x81) { norm += ",";  idx += 3; continue; } // 、 -> ,
-        } else if (c == 0xEF && idx + 2 < out.size()) {
-            unsigned char c2 = (unsigned char)out[idx+1];
-            unsigned char c3 = (unsigned char)out[idx+2];
-            if (c2 == 0xBC && c3 == 0x8C) { norm += ","; idx += 3; continue; } // ， -> ,
-            if (c2 == 0xBC && c3 == 0x9A) { norm += ":"; idx += 3; continue; } // ： -> :
-            if (c2 == 0xBC && c3 == 0x9B) { norm += ";"; idx += 3; continue; } // ； -> ;
-            if (c2 == 0xBC && c3 == 0x9F) { norm += "?"; idx += 3; continue; } // ？ -> ?
-            if (c2 == 0xBC && c3 == 0x81) { norm += "!"; idx += 3; continue; } // ！ -> !
-            if (c2 == 0xBC && c3 == 0x88) { norm += "("; idx += 3; continue; } // （ -> (
-            if (c2 == 0xBC && c3 == 0x89) { norm += ")"; idx += 3; continue; } // ） -> )
-        } else if (c == 0xE2 && idx + 2 < out.size()) {
-            unsigned char c2 = (unsigned char)out[idx+1];
-            unsigned char c3 = (unsigned char)out[idx+2];
-            if (c2 == 0x80 && (c3 == 0x9C || c3 == 0x9D)) { norm += "\""; idx += 3; continue; } // “ ” -> "
-            if (c2 == 0x80 && (c3 == 0x98 || c3 == 0x99)) { norm += "'";  idx += 3; continue; } // ‘ ’ -> '
-            if (c2 == 0x80 && c3 == 0xA6) { norm += "..."; idx += 3; continue; } // … -> ...
-        }
-        norm += out[idx];
-        idx++;
-    }
-
-    // Clean up spacing around punctuation
     std::string cleaned = "";
-    static const std::unordered_set<char> punct_close_c = { ',', '.', ':', ';', '?', '!', ')' };
-
-    for (size_t k = 0; k < norm.size(); ++k) {
-        char ch = norm[k];
-        if (ch == ' ') {
-            if (k + 1 < norm.size() && punct_close_c.count(norm[k+1])) continue;
-            if (!cleaned.empty() && cleaned.back() == '(') continue;
+    for (size_t ci = 0; ci < out.size(); ++ci) {
+        if (out[ci] == ' ' && ci + 1 < out.size()) {
+            char next_c = out[ci + 1];
+            if (next_c == '.' || next_c == ',' || next_c == ';' || next_c == ':' || next_c == '!' || next_c == '?' || next_c == ')' || next_c == ']') {
+                continue;
+            }
         }
-        cleaned += ch;
+        cleaned += out[ci];
     }
 
-    // Capitalize first letter of each sentence (. ? ! " or start of line)
+    // Capitalize first letter of each sentence
     std::string capitalized = "";
     bool cap_next = true;
     size_t ci = 0;

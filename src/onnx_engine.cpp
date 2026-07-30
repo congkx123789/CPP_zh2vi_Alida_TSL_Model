@@ -140,6 +140,7 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
 
     status = impl->g_ort->CreateCpuMemoryInfo(OrtArenaAllocator, OrtMemTypeDefault, &impl->memory_info);
     if (status != nullptr) {
+        std::cerr << "❌ Failed to create MemoryInfo: " << impl->g_ort->GetErrorMessage(status) << std::endl;
         impl->g_ort->ReleaseStatus(status);
         return false;
     }
@@ -153,7 +154,10 @@ bool ONNXInferenceEngine::run(const std::vector<int64_t>& input_ids, std::vector
 }
 
 bool ONNXInferenceEngine::run_batch(const std::vector<int64_t>& batched_ids, size_t batch_size, std::vector<float>& out_logits, std::vector<int64_t>& out_logits_shape) {
-    if (!is_loaded || batch_size == 0) return false;
+    if (!is_loaded || batch_size == 0) {
+        std::cerr << "❌ run_batch error: is_loaded=" << is_loaded << " batch_size=" << batch_size << std::endl;
+        return false;
+    }
 
     int64_t input_shape[2] = {static_cast<int64_t>(batch_size), 64};
     OrtValue* input_tensor = nullptr;
@@ -169,6 +173,7 @@ bool ONNXInferenceEngine::run_batch(const std::vector<int64_t>& batched_ids, siz
     );
 
     if (status != nullptr) {
+        std::cerr << "❌ CreateTensor Error: " << impl->g_ort->GetErrorMessage(status) << std::endl;
         impl->g_ort->ReleaseStatus(status);
         return false;
     }
@@ -200,6 +205,7 @@ bool ONNXInferenceEngine::run_batch(const std::vector<int64_t>& batched_ids, siz
     float* logits_ptr = nullptr;
     status = impl->g_ort->GetTensorMutableData(output_tensors[0], (void**)&logits_ptr);
     if (status != nullptr) {
+        std::cerr << "❌ GetTensorMutableData Error: " << impl->g_ort->GetErrorMessage(status) << std::endl;
         if (output_tensors[0]) impl->g_ort->ReleaseValue(output_tensors[0]);
         if (output_tensors[1]) impl->g_ort->ReleaseValue(output_tensors[1]);
         impl->g_ort->ReleaseStatus(status);

@@ -29,16 +29,22 @@ int main(int argc, char* argv[]) {
             run_benchmark = true;
         } else if (std::strcmp(argv[i], "--gpu") == 0 || std::strcmp(argv[i], "--cuda") == 0) {
             mode = TSLExecutionMode::GPU_CUDA;
+            if (i + 1 < argc && argv[i + 1][0] != '-') input_text = argv[++i];
         } else if (std::strcmp(argv[i], "--ane") == 0 || std::strcmp(argv[i], "--coreml") == 0 || std::strcmp(argv[i], "--iphone") == 0) {
             mode = TSLExecutionMode::NPU_COREML;
+            if (i + 1 < argc && argv[i + 1][0] != '-') input_text = argv[++i];
         } else if (std::strcmp(argv[i], "--qnn") == 0 || std::strcmp(argv[i], "--snapdragon") == 0) {
             mode = TSLExecutionMode::NPU_QNN;
+            if (i + 1 < argc && argv[i + 1][0] != '-') input_text = argv[++i];
         } else if (std::strcmp(argv[i], "--npu") == 0 || std::strcmp(argv[i], "--nnapi") == 0 || std::strcmp(argv[i], "--android") == 0) {
             mode = TSLExecutionMode::NPU_NNAPI;
+            if (i + 1 < argc && argv[i + 1][0] != '-') input_text = argv[++i];
         } else if (std::strcmp(argv[i], "--arm") == 0 || std::strcmp(argv[i], "--xnnpack") == 0) {
             mode = TSLExecutionMode::ARM_XNNPACK;
+            if (i + 1 < argc && argv[i + 1][0] != '-') input_text = argv[++i];
         } else if (std::strcmp(argv[i], "--cpu") == 0) {
             mode = TSLExecutionMode::CPU;
+            if (i + 1 < argc && argv[i + 1][0] != '-') input_text = argv[++i];
         } else if (std::strcmp(argv[i], "--eco") == 0 || std::strcmp(argv[i], "--low-power") == 0) {
             perf_mode = TSLPerformanceMode::ECO_LOW_POWER;
         } else if (std::strcmp(argv[i], "--normal") == 0 || std::strcmp(argv[i], "--balanced") == 0) {

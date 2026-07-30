@@ -114,9 +114,13 @@ std::string TSLTranslator::translate(const std::string& text_zh) {
     }
 
     int seq_len = 64;
-    int vocab_size = (logits_shape.size() >= 2) ? logits_shape.back() : 30000;
-    if (logits_shape.size() == 3) {
+    int vocab_size = 18004;
+    if (logits_shape.size() >= 3) {
         seq_len = logits_shape[1];
+        vocab_size = logits_shape[2];
+    } else if (logits_shape.size() == 2) {
+        seq_len = logits_shape[0];
+        vocab_size = logits_shape[1];
     }
 
     return logits_processor->process_logits(logits.data(), seq_len, vocab_size, text_zh, trie_matches);
@@ -181,7 +185,7 @@ std::vector<std::string> TSLTranslator::translate_batch_pipelined(const std::vec
         }
 
         size_t seq_len = 64;
-        size_t vocab_size = (logits_shape.size() >= 3) ? logits_shape[2] : 30000;
+        size_t vocab_size = (logits_shape.size() >= 3) ? logits_shape[2] : 18004;
         size_t stride = seq_len * vocab_size;
 
         // CPU Logits Selection & Post-processing
@@ -238,7 +242,7 @@ std::vector<std::string> TSLTranslator::translate_batch_profiled(const std::vect
         if (!ok) continue;
 
         size_t seq_len = 64;
-        size_t vocab_size = (logits_shape.size() >= 3) ? logits_shape[2] : 30000;
+        size_t vocab_size = (logits_shape.size() >= 3) ? logits_shape[2] : 18004;
         size_t stride = seq_len * vocab_size;
 
         // Phase 3: CPU Candidate Logits Selection & Translation String Formatting
