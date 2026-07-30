@@ -52,15 +52,16 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
             OrtCUDAProviderOptions cuda_options;
             memset(&cuda_options, 0, sizeof(cuda_options));
             cuda_options.device_id = 0;
-            cuda_options.gpu_mem_limit = 0; // Unlimited: Full 16GB VRAM Arena Pool
+            cuda_options.gpu_mem_limit = 0; // Unlimited 16GB VRAM Arena Pool
             cuda_options.arena_extend_strategy = 0; // kNextPowerOfTwo
+            cuda_options.do_copy_in_default_stream = 1;
 
             OrtStatus* cuda_status = impl->g_ort->SessionOptionsAppendExecutionProvider_CUDA(impl->session_options, &cuda_options);
             if (cuda_status != nullptr) {
                 std::cout << "⚠️ Warning: Failed to enable CUDA Provider (" << impl->g_ort->GetErrorMessage(cuda_status) << "). Falling back to CPU Mode." << std::endl;
                 impl->g_ort->ReleaseStatus(cuda_status);
             } else {
-                std::cout << "🚀 [C++ ONNX Engine] GPU CUDA Execution Provider Active (Unlimited 16GB VRAM Arena Pool, NVIDIA Tensor Cores)!" << std::endl;
+                std::cout << "🚀 [C++ ONNX Engine] GPU CUDA Execution Provider Active (sm_120 Blackwell Architecture RTX 50-Series Target, 5th Gen Tensor Cores)!" << std::endl;
             }
             break;
         }

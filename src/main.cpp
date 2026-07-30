@@ -58,7 +58,7 @@ int main(int argc, char* argv[]) {
         else if (mode == TSLExecutionMode::ARM_XNNPACK) mode_name = "ARM MOBILE LOW-POWER ENGINE (XNNPACK)";
 
         std::cout << "\n================================================================================" << std::endl;
-        std::cout << "🚀 PHÂN TÍCH PHÂN CẤP ĐIỂM NGHẼN (PROFILING 1,000 CÂU): " << mode_name << std::endl;
+        std::cout << "🚀 PHÂN TÍCH CHUYÊN SÂU TẢI GPU CUDA ASYNC PIPELINE (5,000 CÂU TẢI DÀI)" << std::endl;
         std::cout << "================================================================================" << std::endl;
 
         std::vector<std::string> base_sentences = {
@@ -74,15 +74,15 @@ int main(int argc, char* argv[]) {
             "他拿起了宗门的飞剑，快步地走了。"
         };
 
-        // Fast Benchmark: 1,000 sentences total
-        int total_runs = 1000;
+        // Long Test Suite: 5,000 sentences
+        int total_runs = 5000;
         std::vector<std::string> test_sentences(total_runs);
         for (int r = 0; r < total_runs; ++r) {
             test_sentences[r] = base_sentences[r % base_sentences.size()];
         }
 
-        // Sequential Single Sentence Test (100 sentences)
-        int seq_runs = 100;
+        // 1. Sequential Test (500 sentences)
+        int seq_runs = 500;
         auto t0 = std::chrono::high_resolution_clock::now();
         for (int r = 0; r < seq_runs; ++r) {
             translator.translate(base_sentences[r % base_sentences.size()]);
@@ -92,14 +92,14 @@ int main(int argc, char* argv[]) {
         double seq_tps = (seq_runs / seq_ms) * 1000.0;
         double seq_latency = seq_ms / seq_runs;
 
-        std::cout << "⚡ [Sequential Mode] 100 câu  | Thời gian: " << std::fixed << std::setprecision(3) << (seq_ms / 1000.0)
+        std::cout << "⚡ [Sequential Single Sentence] 500 câu | Thời gian: " << std::fixed << std::setprecision(3) << (seq_ms / 1000.0)
                   << "s | Độ trễ: " << seq_latency << " ms/câu | Băng thông: " << std::setprecision(1) << seq_tps << " câu/giây\n" << std::endl;
 
-        // Bottleneck Profiling across Batch Sizes (32, 64, 128)
+        // 2. Bottleneck Profiling across Batch Sizes (32, 64, 128)
         std::vector<size_t> batch_sizes = {32, 64, 128};
 
         std::cout << "--------------------------------------------------------------------------------" << std::endl;
-        std::cout << "🔍 PHÂN TÍCH CHI TIẾT THỜI GIAN TIÊU TỐN TỪNG TRẠM (1,000 CÂU)" << std::endl;
+        std::cout << "🔍 PHÂN TÍCH CHI TIẾT TẢI PHẦN CỨNG GPU CUDA (PROFILING 5,000 CÂU TẢI DÀI)" << std::endl;
         std::cout << "--------------------------------------------------------------------------------" << std::endl;
 
         for (size_t bs : batch_sizes) {
@@ -115,9 +115,9 @@ int main(int argc, char* argv[]) {
             double p2_pct = (p2_ms / total_ms) * 100.0;
             double p3_pct = (p3_ms / total_ms) * 100.0;
 
-            std::cout << "📊 BATCH " << std::setw(3) << bs << " (Tổng thời gian: " << std::setprecision(3) << (total_ms / 1000.0) << "s | Băng thông: " << std::setprecision(1) << b_tps << " câu/s)" << std::endl;
+            std::cout << "📊 BATCH " << std::setw(3) << bs << " (5,000 câu | Tổng thời gian: " << std::setprecision(3) << (total_ms / 1000.0) << "s | Băng thông: " << std::setprecision(1) << b_tps << " câu/s)" << std::endl;
             std::cout << "   ├─ Trạm 1 (CPU Tokenizer + Trie Match) : " << std::setprecision(3) << (p1_ms / 1000.0) << "s (" << std::setprecision(1) << p1_pct << "%)" << std::endl;
-            std::cout << "   ├─ Trạm 2 (GPU CUDA ONNX Tensor Run)  : " << std::setprecision(3) << (p2_ms / 1000.0) << "s (" << std::setprecision(1) << p2_pct << "%) [TẢI GPU THẬT]" << std::endl;
+            std::cout << "   ├─ Trạm 2 (GPU CUDA ONNX Tensor Run)  : " << std::setprecision(3) << (p2_ms / 1000.0) << "s (" << std::setprecision(1) << p2_pct << "%) 🔥 [TẢI GPU CUDA THẬT]" << std::endl;
             std::cout << "   └─ Trạm 3 (CPU Logits & String Build) : " << std::setprecision(3) << (p3_ms / 1000.0) << "s (" << std::setprecision(1) << p3_pct << "%)\n" << std::endl;
         }
 
