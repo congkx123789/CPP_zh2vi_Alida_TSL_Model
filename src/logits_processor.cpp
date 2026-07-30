@@ -293,6 +293,20 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
         }
     }
 
+    for (auto& w : final_words) {
+        if (w == "，" || w == "、") w = ",";
+        else if (w == "。") w = ".";
+        else if (w == "！") w = "!";
+        else if (w == "？") w = "?";
+        else if (w == "：" || w == "︰") w = ":";
+        else if (w == "；") w = ";";
+        else if (w == "“" || w == "”" || w == "《" || w == "》") w = "\"";
+        else if (w == "（") w = "(";
+        else if (w == "）") w = ")";
+        else if (w == "【") w = "[";
+        else if (w == "】") w = "]";
+    }
+
     // Deduplicate consecutive words
     std::vector<std::string> res;
     for (const auto& w : final_words) {
