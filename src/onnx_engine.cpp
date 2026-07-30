@@ -22,7 +22,7 @@ ONNXInferenceEngine::~ONNXInferenceEngine() {
     }
 }
 
-bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecutionMode mode) {
+bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecutionMode mode, TSLPerformanceMode perf_mode) {
     impl->g_ort = OrtGetApiBase()->GetApi(17);
     if (!impl->g_ort) {
         std::cerr << "❌ Failed to initialize ONNX Runtime API Base." << std::endl;
@@ -41,11 +41,23 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
         impl->g_ort->ReleaseStatus(status);
         return false;
     }
-    impl->g_ort->SetIntraOpNumThreads(impl->session_options, 4);
+
+    int threads = 4;
+    std::string perf_name = "BALANCED (NORMAL)";
+    if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) {
+        threads = 2;
+        perf_name = "ECO (LOW POWER / BATTERY SAVER)";
+    } else if (perf_mode == TSLPerformanceMode::MAX_PERFORMANCE) {
+        threads = 8;
+        perf_name = "MAX PERFORMANCE (HIGH THROUGHPUT)";
+    }
+
+    impl->g_ort->SetIntraOpNumThreads(impl->session_options, threads);
     impl->g_ort->SetSessionGraphOptimizationLevel(impl->session_options, ORT_ENABLE_ALL);
 
+    std::string thread_str = std::to_string(threads);
     const char* ep_keys[] = {"intra_op_num_threads"};
-    const char* ep_vals[] = {"4"};
+    const char* ep_vals[] = {thread_str.c_str()};
 
     switch (mode) {
         case TSLExecutionMode::GPU_CUDA: {
@@ -61,17 +73,17 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
                 std::cout << "⚠️ Warning: Failed to enable CUDA Provider (" << impl->g_ort->GetErrorMessage(cuda_status) << "). Falling back to CPU Mode." << std::endl;
                 impl->g_ort->ReleaseStatus(cuda_status);
             } else {
-                std::cout << "🚀 [C++ ONNX Engine] GPU CUDA Execution Provider Active (sm_120 Blackwell Architecture RTX 50-Series Target, 5th Gen Tensor Cores)!" << std::endl;
+                std::cout << "🚀 [C++ ONNX Engine] GPU CUDA Execution Provider Active [" << perf_name << "] (sm_120 Blackwell Architecture RTX 50-Series Target)!" << std::endl;
             }
             break;
         }
 
         case TSLExecutionMode::NPU_COREML: {
-            std::cout << "🍏 [Apple iPhone/iPad Engine] Initializing Apple Neural Engine (ANE CoreML EP)..." << std::endl;
+            std::cout << "🍏 [Apple iPhone/iPad Engine] Initializing Apple Neural Engine (ANE CoreML EP) [" << perf_name << "]..." << std::endl;
             OrtStatus* ep_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "CoreML", ep_keys, ep_vals, 0);
             if (ep_status != nullptr) {
                 impl->g_ort->ReleaseStatus(ep_status);
-                std::cout << "🍏 [Apple ANE Engine] Simulated Apple Neural Engine pipeline active (iPhone A15/A16/A17/M-Series INT8)." << std::endl;
+                std::cout << "🍏 [Apple ANE Engine] Simulated Apple Neural Engine pipeline active." << std::endl;
             } else {
                 std::cout << "🍏 [Apple ANE Engine] CoreML Apple Neural Engine Provider Active!" << std::endl;
             }
@@ -79,11 +91,11 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
         }
 
         case TSLExecutionMode::NPU_QNN: {
-            std::cout << "🐉 [Qualcomm Snapdragon Engine] Initializing Qualcomm Hexagon NPU (QNN Direct SDK)..." << std::endl;
+            std::cout << "🐉 [Qualcomm Snapdragon Engine] Initializing Qualcomm Hexagon NPU (QNN Direct SDK) [" << perf_name << "]..." << std::endl;
             OrtStatus* ep_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "QNN", ep_keys, ep_vals, 0);
             if (ep_status != nullptr) {
                 impl->g_ort->ReleaseStatus(ep_status);
-                std::cout << "🐉 [Qualcomm NPU Engine] Simulated Qualcomm Hexagon NPU pipeline active (Snapdragon 778G / 8 Gen 1/2/3 INT8)." << std::endl;
+                std::cout << "🐉 [Qualcomm NPU Engine] Simulated Qualcomm Hexagon NPU pipeline active." << std::endl;
             } else {
                 std::cout << "🐉 [Qualcomm NPU Engine] QNN Hexagon NPU Provider Active!" << std::endl;
             }
@@ -91,11 +103,11 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
         }
 
         case TSLExecutionMode::NPU_NNAPI: {
-            std::cout << "📱 [Android Universal NPU Engine] Initializing MediaTek APU / Exynos NPU / Google Tensor TPU (NNAPI EP)..." << std::endl;
+            std::cout << "📱 [Android Universal NPU Engine] Initializing MediaTek APU / Exynos NPU / Google Tensor TPU [" << perf_name << "]..." << std::endl;
             OrtStatus* ep_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "NNAPI", ep_keys, ep_vals, 0);
             if (ep_status != nullptr) {
                 impl->g_ort->ReleaseStatus(ep_status);
-                std::cout << "📱 [Android NPU Engine] Simulated Android NNAPI NPU pipeline active (Dimensity 9000 / Exynos / Tensor TPU)." << std::endl;
+                std::cout << "📱 [Android NPU Engine] Simulated Android NNAPI NPU pipeline active." << std::endl;
             } else {
                 std::cout << "📱 [Android NPU Engine] Android NNAPI NPU Provider Active!" << std::endl;
             }
@@ -103,7 +115,7 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
         }
 
         case TSLExecutionMode::ARM_XNNPACK: {
-            std::cout << "💡 [ARM Mobile Ultra-Low-Power Engine] Initializing ARM Neon XNNPACK EP..." << std::endl;
+            std::cout << "💡 [ARM Mobile Ultra-Low-Power Engine] Initializing ARM Neon XNNPACK EP [" << perf_name << "]..." << std::endl;
             OrtStatus* ep_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "XNNPACK", ep_keys, ep_vals, 1);
             if (ep_status != nullptr) {
                 impl->g_ort->ReleaseStatus(ep_status);
@@ -115,7 +127,7 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
         }
 
         default:
-            std::cout << "⚡ [C++ ONNX Engine] CPU Execution Mode Active." << std::endl;
+            std::cout << "⚡ [C++ ONNX Engine] CPU Execution Mode Active [" << perf_name << "]." << std::endl;
             break;
     }
 

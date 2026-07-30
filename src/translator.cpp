@@ -6,11 +6,12 @@
 #include <future>
 #include <omp.h>
 
-TSLTranslator::TSLTranslator() : exec_mode(TSLExecutionMode::CPU), is_ready(false) {}
+TSLTranslator::TSLTranslator() : exec_mode(TSLExecutionMode::CPU), perf_mode(TSLPerformanceMode::BALANCED_NORMAL), is_ready(false) {}
 TSLTranslator::~TSLTranslator() {}
 
-bool TSLTranslator::init(const std::string& base_dir, TSLExecutionMode mode) {
+bool TSLTranslator::init(const std::string& base_dir, TSLExecutionMode mode, TSLPerformanceMode performance_mode) {
     exec_mode = mode;
+    perf_mode = performance_mode;
     std::cout << "⚡ Initializing Alida TSL Native C++ Translation Engine..." << std::endl;
 
     std::string data_dir = base_dir + "/data";
@@ -44,8 +45,8 @@ bool TSLTranslator::init(const std::string& base_dir, TSLExecutionMode mode) {
         std::cerr << "⚠️ Warning: Failed to load Hán Việt dictionary from " << hv_dict_path << std::endl;
     }
 
-    // 4. Load ONNX Model (CPU, GPU CUDA, or Mobile NPU)
-    if (!onnx_engine.load_model(onnx_model_path, mode)) {
+    // 4. Load ONNX Model (CPU, GPU CUDA, or Mobile NPU with Performance Mode)
+    if (!onnx_engine.load_model(onnx_model_path, mode, perf_mode)) {
         std::cerr << "❌ Failed to load ONNX INT8 model from " << onnx_model_path << std::endl;
         return false;
     }
@@ -67,6 +68,13 @@ void TSLTranslator::warmup() {
 size_t TSLTranslator::get_adaptive_batch_size(size_t total_sentences) const {
     if (total_sentences <= 1) return 1;
 
+    if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) {
+        return std::min<size_t>(total_sentences, 16); // Batch 16 low-power for battery saving
+    } else if (perf_mode == TSLPerformanceMode::BALANCED_NORMAL) {
+        return std::min<size_t>(total_sentences, 64); // Batch 64 normal balanced mode
+    }
+
+    // MAX_PERFORMANCE MODE
     switch (exec_mode) {
         case TSLExecutionMode::GPU_CUDA:
             return (total_sentences < 128) ? total_sentences : 128; // Optimal VRAM Arena size for GPU Tensor Cores
@@ -80,7 +88,7 @@ size_t TSLTranslator::get_adaptive_batch_size(size_t total_sentences) const {
             return (total_sentences < 16) ? total_sentences : 16;   // Optimal Neon SIMD size for ARM CPU
 
         default:
-            return (total_sentences < 64) ? total_sentences : 64;   // Optimal x86_64 CPU thread pool size
+            return (total_sentences < 128) ? total_sentences : 128; // Optimal x86_64 CPU thread pool size
     }
 }
 

@@ -28,10 +28,11 @@ public:
     /**
      * @brief Khởi tạo toàn bộ động cơ dịch (nạp Tokenizer, DAWG Trie, ONNX Model, Hán Việt Dict)
      * @param base_dir Thư mục gốc chứa data/ và model/
-     * @param mode Chế độ phần cứng thực thi (CPU / GPU_CUDA / NPU_NNAPI / NPU_QNN / NPU_COREML / ARM_XNNPACK)
+     * @param mode Chế độ phần cứng thực thi
+     * @param perf_mode Chế độ hiệu năng (ECO / BALANCED / MAX_PERFORMANCE)
      * @return true nếu khởi tạo thành công
      */
-    bool init(const std::string& base_dir = ".", TSLExecutionMode mode = TSLExecutionMode::CPU);
+    bool init(const std::string& base_dir = ".", TSLExecutionMode mode = TSLExecutionMode::CPU, TSLPerformanceMode perf_mode = TSLPerformanceMode::BALANCED_NORMAL);
 
     /**
      * @brief Dịch một câu tiếng Trung sang tiếng Việt hoàn chỉnh
@@ -43,7 +44,7 @@ public:
     /**
      * @brief Dịch song song một mảng danh sách các câu với Batch Size tự động thích ứng phần cứng
      * @param texts_zh Danh sách các câu tiếng Trung
-     * @param batch_size Kích thước Batch (mặc định: 0 = Tự động tối ưu theo GPU/NPU)
+     * @param batch_size Kích thước Batch (mặc định: 0 = Tự động tối ưu theo GPU/NPU và Perf Mode)
      * @return Mảng danh sách các câu tiếng Việt tương ứng
      */
     std::vector<std::string> translate_batch(const std::vector<std::string>& texts_zh, size_t batch_size = 0);
@@ -59,7 +60,7 @@ public:
     std::vector<std::string> translate_batch_profiled(const std::vector<std::string>& texts_zh, size_t batch_size, double& out_p1_ms, double& out_p2_ms, double& out_p3_ms);
 
     /**
-     * @brief Tính toán Batch Size tối ưu tự động dựa theo loại phần cứng và số lượng câu
+     * @brief Tính toán Batch Size tối ưu tự động dựa theo loại phần cứng và chế độ hiệu năng
      */
     size_t get_adaptive_batch_size(size_t total_sentences) const;
 
@@ -71,6 +72,7 @@ private:
     ONNXInferenceEngine onnx_engine;
     std::unique_ptr<LogitsProcessor> logits_processor;
     TSLExecutionMode exec_mode;
+    TSLPerformanceMode perf_mode;
     bool is_ready;
 };
 
