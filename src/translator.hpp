@@ -32,7 +32,7 @@ public:
      * @param perf_mode Chế độ hiệu năng (ECO / BALANCED / MAX_PERFORMANCE)
      * @return true nếu khởi tạo thành công
      */
-    bool init(const std::string& base_dir = ".", TSLExecutionMode mode = TSLExecutionMode::CPU, TSLPerformanceMode perf_mode = TSLPerformanceMode::BALANCED_NORMAL);
+    bool init(const std::string& base_dir = ".", TSLExecutionMode mode = TSLExecutionMode::CPU, TSLPerformanceMode perf_mode = TSLPerformanceMode::BALANCED_NORMAL, int device_id = 0);
 
     /**
      * @brief Dịch một câu tiếng Trung sang tiếng Việt hoàn chỉnh

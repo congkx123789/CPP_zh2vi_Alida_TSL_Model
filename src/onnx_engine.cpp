@@ -25,7 +25,7 @@ ONNXInferenceEngine::~ONNXInferenceEngine() {
     }
 }
 
-bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecutionMode mode, TSLPerformanceMode perf_mode) {
+bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecutionMode mode, TSLPerformanceMode perf_mode, int device_id) {
     impl->g_ort = OrtGetApiBase()->GetApi(17);
     if (!impl->g_ort) {
         std::cerr << "❌ Failed to initialize ONNX Runtime API Base." << std::endl;
@@ -49,7 +49,7 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
     std::string perf_name = "BALANCED (NORMAL)";
     if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) {
         threads = 2;
-        perf_name = "ECO (LOW POWER / BATTERY SAVER)";
+        perf_name = "ECO (LOW POWER)";
     } else if (perf_mode == TSLPerformanceMode::MAX_PERFORMANCE) {
         threads = 8;
         perf_name = "MAX PERFORMANCE (HIGH THROUGHPUT)";
@@ -66,7 +66,7 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
         case TSLExecutionMode::GPU_CUDA: {
             OrtCUDAProviderOptions cuda_options;
             memset(&cuda_options, 0, sizeof(cuda_options));
-            cuda_options.device_id = 0;
+            cuda_options.device_id = device_id;
             cuda_options.gpu_mem_limit = 0; // Unlimited 16GB VRAM Arena Pool
             cuda_options.arena_extend_strategy = 0; // kNextPowerOfTwo
             cuda_options.do_copy_in_default_stream = 1;
@@ -75,8 +75,9 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
             if (cuda_status != nullptr) {
                 impl->g_ort->ReleaseStatus(cuda_status);
                 // Try Windows DirectML GPU Provider (NVIDIA GeForce MX330 / Intel Iris Xe / DirectX 12)
+                std::string dev_str = std::to_string(device_id);
                 const char* dml_keys[] = {"device_id"};
-                const char* dml_vals[] = {"0"};
+                const char* dml_vals[] = {dev_str.c_str()};
                 OrtStatus* dml_status = impl->g_ort->SessionOptionsAppendExecutionProvider(impl->session_options, "DML", dml_keys, dml_vals, 1);
                 if (dml_status != nullptr) {
                     impl->g_ort->ReleaseStatus(dml_status);
@@ -86,10 +87,10 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, TSLExecution
                     impl->g_ort->ReleaseStatus(dml_status);
                     std::cout << "⚠️ Warning: Failed to enable GPU Providers. Falling back to CPU Mode." << std::endl;
                 } else {
-                    std::cout << "🎮 [Windows DirectX 12 GPU Engine] DirectML GPU Execution Provider Active [" << perf_name << "] (NVIDIA GeForce MX330 / Intel Iris Xe Target)!" << std::endl;
+                    std::cout << "🎮 [Windows DirectX 12 GPU Engine] DirectML GPU Execution Provider Active on GPU Device [" << device_id << "] [" << perf_name << "]!" << std::endl;
                 }
             } else {
-                std::cout << "🚀 [C++ ONNX Engine] GPU CUDA Execution Provider Active [" << perf_name << "] (sm_120 Blackwell Architecture RTX 50-Series Target)!" << std::endl;
+                std::cout << "🚀 [C++ ONNX Engine] GPU CUDA Execution Provider Active on Device [" << device_id << "] [" << perf_name << "]!" << std::endl;
             }
             break;
         }

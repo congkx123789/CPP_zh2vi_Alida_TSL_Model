@@ -9,7 +9,7 @@
 TSLTranslator::TSLTranslator() : exec_mode(TSLExecutionMode::CPU), perf_mode(TSLPerformanceMode::BALANCED_NORMAL), is_ready(false) {}
 TSLTranslator::~TSLTranslator() {}
 
-bool TSLTranslator::init(const std::string& base_dir, TSLExecutionMode mode, TSLPerformanceMode performance_mode) {
+bool TSLTranslator::init(const std::string& base_dir, TSLExecutionMode mode, TSLPerformanceMode performance_mode, int device_id) {
     exec_mode = mode;
     perf_mode = performance_mode;
     std::cout << "⚡ Initializing Alida TSL Native C++ Translation Engine..." << std::endl;
@@ -46,7 +46,7 @@ bool TSLTranslator::init(const std::string& base_dir, TSLExecutionMode mode, TSL
     }
 
     // 4. Load ONNX Model (CPU, GPU CUDA, or Mobile NPU with Performance Mode)
-    if (!onnx_engine.load_model(onnx_model_path, mode, perf_mode)) {
+    if (!onnx_engine.load_model(onnx_model_path, mode, perf_mode, device_id)) {
         std::cerr << "❌ Failed to load ONNX INT8 model from " << onnx_model_path << std::endl;
         return false;
     }
@@ -72,9 +72,9 @@ size_t TSLTranslator::get_adaptive_batch_size(size_t total_sentences) const {
 
     switch (exec_mode) {
         case TSLExecutionMode::GPU_CUDA:
-            if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) target_batch = 16;
-            else if (perf_mode == TSLPerformanceMode::BALANCED_NORMAL) target_batch = 32;
-            else target_batch = 32; // Optimized for DirectML 2GB VRAM (NVIDIA MX330 / Intel Iris Xe)
+            if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) target_batch = 8;
+            else if (perf_mode == TSLPerformanceMode::BALANCED_NORMAL) target_batch = 16;
+            else target_batch = 16; // Optimized for DirectML TDR & VRAM safety (NVIDIA MX330 / Intel Iris Xe)
             break;
 
         case TSLExecutionMode::NPU_COREML:

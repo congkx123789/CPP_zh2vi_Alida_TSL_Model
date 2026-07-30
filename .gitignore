@@ -6,3 +6,6 @@ tsl_translator.exe
 *.txt
 !input.txt
 !README.md
+*.dll
+!lib/marisa/*.a
+!lib/onnxruntime/*.a

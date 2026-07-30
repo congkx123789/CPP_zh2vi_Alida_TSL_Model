@@ -24,6 +24,9 @@ int main(int argc, char* argv[]) {
     TSLExecutionMode mode = TSLExecutionMode::CPU;
     TSLPerformanceMode perf_mode = TSLPerformanceMode::MAX_PERFORMANCE;
 
+    int device_id = 0;
+    size_t custom_batch_size = 0;
+
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--text") == 0 && i + 1 < argc) {
             input_text = argv[++i];
@@ -33,6 +36,10 @@ int main(int argc, char* argv[]) {
             output_file = argv[++i];
         } else if (std::strcmp(argv[i], "--dir") == 0 && i + 1 < argc) {
             base_dir = argv[++i];
+        } else if ((std::strcmp(argv[i], "--batch") == 0 || std::strcmp(argv[i], "-b") == 0) && i + 1 < argc) {
+            custom_batch_size = std::stoul(argv[++i]);
+        } else if ((std::strcmp(argv[i], "--device") == 0 || std::strcmp(argv[i], "-d") == 0) && i + 1 < argc) {
+            device_id = std::atoi(argv[++i]);
         } else if (std::strcmp(argv[i], "--benchmark") == 0) {
             run_benchmark = true;
         } else if (std::strcmp(argv[i], "--test") == 0 || std::strcmp(argv[i], "--suite") == 0) {
@@ -67,7 +74,7 @@ int main(int argc, char* argv[]) {
     }
 
     TSLTranslator translator;
-    if (!translator.init(base_dir, mode, perf_mode)) {
+    if (!translator.init(base_dir, mode, perf_mode, device_id)) {
         std::cerr << "❌ Failed to initialize TSL Native C++ Translator." << std::endl;
         return 1;
     }
@@ -153,7 +160,7 @@ int main(int argc, char* argv[]) {
         // Bottleneck Profiling with Adaptive Performance Batching
         double p1_ms = 0.0, p2_ms = 0.0, p3_ms = 0.0;
         auto tb0 = std::chrono::high_resolution_clock::now();
-        auto results = translator.translate_batch_profiled(test_sentences, 0, p1_ms, p2_ms, p3_ms);
+        auto results = translator.translate_batch_profiled(test_sentences, custom_batch_size, p1_ms, p2_ms, p3_ms);
         auto tb1 = std::chrono::high_resolution_clock::now();
 
         double total_ms = std::chrono::duration<double, std::milli>(tb1 - tb0).count();
@@ -163,7 +170,7 @@ int main(int argc, char* argv[]) {
         double p2_pct = (p2_ms / total_ms) * 100.0;
         double p3_pct = (p3_ms / total_ms) * 100.0;
 
-        size_t effective_batch = translator.get_adaptive_batch_size(total_runs);
+        size_t effective_batch = custom_batch_size > 0 ? custom_batch_size : translator.get_adaptive_batch_size(total_runs);
 
         std::cout << "--------------------------------------------------------------------------------" << std::endl;
         std::cout << "🔍 PHÂN TÍCH THỜI GIAN TIÊU TỐN CỦA CHẾ ĐỘ HIỆU NĂNG HIỆN TẠI (BATCH " << effective_batch << ")" << std::endl;
@@ -194,7 +201,7 @@ int main(int argc, char* argv[]) {
         std::cout << "📁 Total lines read from " << input_file << ": " << lines.size() << std::endl;
         auto t0 = std::chrono::high_resolution_clock::now();
 
-        std::vector<std::string> translated_lines = translator.translate_batch(lines, 0);
+        std::vector<std::string> translated_lines = translator.translate_batch(lines, custom_batch_size);
 
         auto t1 = std::chrono::high_resolution_clock::now();
         double total_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();

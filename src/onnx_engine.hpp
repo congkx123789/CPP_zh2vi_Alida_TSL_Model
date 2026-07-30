@@ -52,7 +52,7 @@ public:
      * @param perf_mode Chế độ hiệu năng (ECO / BALANCED / MAX_PERFORMANCE)
      * @return true nếu nạp thành công
      */
-    bool load_model(const std::string& model_path, TSLExecutionMode mode = TSLExecutionMode::CPU, TSLPerformanceMode perf_mode = TSLPerformanceMode::BALANCED_NORMAL);
+    bool load_model(const std::string& model_path, TSLExecutionMode mode = TSLExecutionMode::CPU, TSLPerformanceMode perf_mode = TSLPerformanceMode::BALANCED_NORMAL, int device_id = 0);
 
     /**
      * @brief Thực thi suy luận Forward Pass cho 1 câu (Shape: [1, 64])
