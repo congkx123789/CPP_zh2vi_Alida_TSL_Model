@@ -2,7 +2,7 @@
 set -e
 
 echo "================================================================================"
-echo "🔨 BUILDING TSL NATIVE C++ TRANSLATOR (CPU & GPU CUDA SUPPORT)"
+echo "🔨 BUILDING TSL NATIVE C++ TRANSLATOR (CPU & GPU CUDA SUPPORT + OPENMP)"
 echo "================================================================================"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -13,8 +13,8 @@ CUBLAS_PATH="/home/alida/.local/lib/python3.12/site-packages/nvidia/cublas/lib"
 CUDNN_PATH="/home/alida/.local/lib/python3.12/site-packages/nvidia/cudnn/lib"
 ORT_CAPI_PATH="$SCRIPT_DIR/lib/onnxruntime"
 
-# Compile with GPU CUDA & CPU ONNX Runtime support
-g++ -O3 -std=c++17 \
+# Compile with OpenMP & GPU CUDA ONNX Runtime support
+g++ -O3 -std=c++17 -fopenmp \
   -Isrc \
   -Ilib/marisa/include \
   -Ilib/onnxruntime/onnxruntime \

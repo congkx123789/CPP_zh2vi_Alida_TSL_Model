@@ -9,6 +9,7 @@
 #define TRANSLATOR_HPP
 
 #include <string>
+#include <vector>
 #include <memory>
 #include "tokenizer.hpp"
 #include "dictionary.hpp"
@@ -17,7 +18,7 @@
 
 /**
  * @class TSLTranslator
- * @brief Lớp dịch thuật cấp cao tích hợp toàn bộ Pipeline 3 Trạm C++ Nguyên bản (Hỗ trợ CPU & GPU CUDA)
+ * @brief Lớp dịch thuật cấp cao tích hợp toàn bộ Pipeline 3 Trạm C++ Nguyên bản (Hỗ trợ CPU & GPU CUDA Batching)
  */
 class TSLTranslator {
 public:
@@ -38,6 +39,14 @@ public:
      * @return Chuỗi tiếng Việt đã qua xử lý Trạm 1, 2 & 3
      */
     std::string translate(const std::string& text_zh);
+
+    /**
+     * @brief Dịch song song một mảng danh sách các câu trên GPU CUDA
+     * @param texts_zh Danh sách các câu tiếng Trung
+     * @param batch_size Kích thước Batch GPU (mặc định: 256)
+     * @return Mảng danh sách các câu tiếng Việt tương ứng
+     */
+    std::vector<std::string> translate_batch(const std::vector<std::string>& texts_zh, size_t batch_size = 256);
 
 private:
     void warmup();

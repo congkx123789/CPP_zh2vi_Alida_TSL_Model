@@ -2,6 +2,8 @@
 #include <iostream>
 #include <fstream>
 #include <chrono>
+#include <algorithm>
+#include <omp.h>
 
 TSLTranslator::TSLTranslator() : is_ready(false) {}
 TSLTranslator::~TSLTranslator() {}
@@ -15,7 +17,6 @@ bool TSLTranslator::init(const std::string& base_dir, bool use_gpu) {
         std::ifstream test(hv_dict_path);
         if (!test.is_open()) hv_dict_path = data_dir + "/HanViet_CharDict_Enhanced_Merged.txt";
     }
-    // Try model/ first, then checkpoints/
     std::string onnx_model_path = base_dir + "/model/student_nat_int8.onnx";
     {
         std::ifstream test(onnx_model_path);
@@ -64,11 +65,9 @@ void TSLTranslator::warmup() {
 std::string TSLTranslator::translate(const std::string& text_zh) {
     if (!is_ready || text_zh.empty()) return "";
 
-    // Step 1: Tokenizer Encode & Trie Match
     std::vector<int64_t> zh_ids = tokenizer.encode_zh(text_zh, 64);
     std::vector<MatchInfo> trie_matches = trie.match_sentence(text_zh);
 
-    // Step 2: ONNX Model Forward Pass
     std::vector<float> logits;
     std::vector<int64_t> logits_shape;
     if (!onnx_engine.run(zh_ids, logits, logits_shape)) {
@@ -81,6 +80,45 @@ std::string TSLTranslator::translate(const std::string& text_zh) {
         seq_len = logits_shape[1];
     }
 
-    // Step 3: Logits Processor & Output Generation
     return logits_processor->process_logits(logits.data(), seq_len, vocab_size, text_zh, trie_matches);
+}
+
+std::vector<std::string> TSLTranslator::translate_batch(const std::vector<std::string>& texts_zh, size_t batch_size) {
+    std::vector<std::string> results(texts_zh.size());
+    if (!is_ready || texts_zh.empty()) return results;
+
+    for (size_t b_start = 0; b_start < texts_zh.size(); b_start += batch_size) {
+        size_t cur_batch = std::min(batch_size, texts_zh.size() - b_start);
+        std::vector<int64_t> batched_ids;
+        batched_ids.reserve(cur_batch * 64);
+
+        std::vector<std::vector<MatchInfo>> all_matches(cur_batch);
+
+        for (size_t i = 0; i < cur_batch; ++i) {
+            const auto& text = texts_zh[b_start + i];
+            std::vector<int64_t> ids = tokenizer.encode_zh(text, 64);
+            batched_ids.insert(batched_ids.end(), ids.begin(), ids.end());
+            all_matches[i] = trie.match_sentence(text);
+        }
+
+        std::vector<float> batch_logits;
+        std::vector<int64_t> logits_shape;
+        if (!onnx_engine.run_batch(batched_ids, cur_batch, batch_logits, logits_shape)) {
+            continue;
+        }
+
+        size_t seq_len = 64;
+        size_t vocab_size = (logits_shape.size() >= 3) ? logits_shape[2] : 30000;
+        size_t stride = seq_len * vocab_size;
+
+        #pragma omp parallel for schedule(static)
+        for (size_t i = 0; i < cur_batch; ++i) {
+            const float* sentence_logits = batch_logits.data() + (i * stride);
+            results[b_start + i] = logits_processor->process_logits(
+                sentence_logits, seq_len, vocab_size, texts_zh[b_start + i], all_matches[i]
+            );
+        }
+    }
+
+    return results;
 }

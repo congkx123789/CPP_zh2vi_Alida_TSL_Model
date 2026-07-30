@@ -41,7 +41,7 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, bool use_gpu
         impl->g_ort->ReleaseStatus(status);
         return false;
     }
-    impl->g_ort->SetIntraOpNumThreads(impl->session_options, 1);
+    impl->g_ort->SetIntraOpNumThreads(impl->session_options, 4);
     impl->g_ort->SetSessionGraphOptimizationLevel(impl->session_options, ORT_ENABLE_ALL);
 
     if (use_gpu) {
@@ -77,23 +77,19 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path, bool use_gpu
 }
 
 bool ONNXInferenceEngine::run(const std::vector<int64_t>& input_ids, std::vector<float>& out_logits, std::vector<int64_t>& out_logits_shape) {
-    if (!is_loaded) return false;
+    return run_batch(input_ids, 1, out_logits, out_logits_shape);
+}
 
-    // Pad / truncate input_ids to 64
-    std::vector<int64_t> padded_ids = input_ids;
-    if (padded_ids.size() < 64) {
-        padded_ids.resize(64, 0);
-    } else if (padded_ids.size() > 64) {
-        padded_ids.resize(64);
-    }
+bool ONNXInferenceEngine::run_batch(const std::vector<int64_t>& batched_ids, size_t batch_size, std::vector<float>& out_logits, std::vector<int64_t>& out_logits_shape) {
+    if (!is_loaded || batch_size == 0) return false;
 
-    int64_t input_shape[2] = {1, 64};
+    int64_t input_shape[2] = {static_cast<int64_t>(batch_size), 64};
     OrtValue* input_tensor = nullptr;
-    
+
     OrtStatus* status = impl->g_ort->CreateTensorWithDataAsOrtValue(
         impl->memory_info,
-        padded_ids.data(),
-        padded_ids.size() * sizeof(int64_t),
+        const_cast<int64_t*>(batched_ids.data()),
+        batched_ids.size() * sizeof(int64_t),
         input_shape,
         2,
         ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64,

@@ -42,10 +42,10 @@ int main(int argc, char* argv[]) {
 
     if (run_benchmark) {
         std::cout << "\n================================================================================" << std::endl;
-        std::cout << "🚀 CHƯƠNG TRÌNH BENCHMARK TỐC ĐỘ NGUYÊN BẢN C++ (" << (use_gpu ? "GPU CUDA" : "CPU") << ")" << std::endl;
+        std::cout << "🚀 CHƯƠNG TRÌNH BENCHMARK TỐC ĐỘ NGUYÊN BẢN C++ (" << (use_gpu ? "GPU CUDA BATCHING" : "CPU MODE") << ")" << std::endl;
         std::cout << "================================================================================" << std::endl;
 
-        std::vector<std::string> test_sentences = {
+        std::vector<std::string> base_sentences = {
             "掌柜在门前等他",
             "一言既出，驷马难追",
             "三三两两的人群",
@@ -56,24 +56,33 @@ int main(int argc, char* argv[]) {
             " hắn 一头扎进九层楼，向前方走去。"
         };
 
-        int total_runs = 1000;
-        int num_sentences = test_sentences.size();
-        
-        auto t0 = std::chrono::high_resolution_clock::now();
+        int total_runs = 5000;
+        std::vector<std::string> test_sentences(total_runs);
         for (int r = 0; r < total_runs; ++r) {
-            const auto& s = test_sentences[r % num_sentences];
-            translator.translate(s);
+            test_sentences[r] = base_sentences[r % base_sentences.size()];
+        }
+
+        // Test 1: Single Sentence Sequential Mode
+        auto t0 = std::chrono::high_resolution_clock::now();
+        for (int r = 0; r < 500; ++r) {
+            translator.translate(test_sentences[r]);
         }
         auto t1 = std::chrono::high_resolution_clock::now();
-        
-        double total_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-        double avg_ms = total_ms / total_runs;
-        double throughput = (total_runs / total_ms) * 1000.0;
+        double seq_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        double seq_tps = (500.0 / seq_ms) * 1000.0;
 
-        std::cout << "⚡ Tổng số câu test                 : " << total_runs << " câu" << std::endl;
-        std::cout << "⚡ Tổng thời gian thực thi         : " << (total_ms / 1000.0) << " giây" << std::endl;
-        std::cout << "⚡ Độ trễ trung bình mỗi câu       : " << avg_ms << " ms / câu" << std::endl;
-        std::cout << "🔥 BĂNG THÔNG DỊCH C++ (THROUGHPUT): " << throughput << " câu / giây (~" << (throughput * 60.0) << " câu/phút)" << std::endl;
+        std::cout << "⚡ [C++ Sequential Mode] 500 câu              : " << (seq_ms / 1000.0) << "s (" << seq_tps << " câu/giây)" << std::endl;
+
+        // Test 2: Parallel Batch GPU Mode
+        auto t2 = std::chrono::high_resolution_clock::now();
+        auto batch_results = translator.translate_batch(test_sentences, 256);
+        auto t3 = std::chrono::high_resolution_clock::now();
+
+        double batch_ms = std::chrono::duration<double, std::milli>(t3 - t2).count();
+        double batch_tps = (total_runs / batch_ms) * 1000.0;
+
+        std::cout << "🔥 [C++ Parallel GPU Batch 256] " << total_runs << " câu      : " << (batch_ms / 1000.0) << "s (" << batch_tps << " câu/giây)" << std::endl;
+        std::cout << "🚀 Tăng tốc vượt trội                     : " << (batch_tps / seq_tps) << "x lần so với dịch tuần tự" << std::endl;
         std::cout << "================================================================================" << std::endl;
         return 0;
     }
@@ -85,33 +94,35 @@ int main(int argc, char* argv[]) {
             return 1;
         }
 
-        std::ofstream f_out;
-        if (!output_file.empty()) {
-            f_out.open(output_file);
-        }
-
+        std::vector<std::string> lines;
         std::string line;
-        int count = 0;
+        while (std::getline(f_in, line)) {
+            lines.push_back(line);
+        }
+        f_in.close();
+
+        std::cout << "📁 Total lines read from " << input_file << ": " << lines.size() << std::endl;
         auto t0 = std::chrono::high_resolution_clock::now();
 
-        while (std::getline(f_in, line)) {
-            if (line.empty()) {
-                if (f_out.is_open()) f_out << "\n";
-                else std::cout << "\n";
-                continue;
-            }
-            std::string res = translator.translate(line);
-            if (f_out.is_open()) {
-                f_out << res << "\n";
-            } else {
-                std::cout << res << "\n";
-            }
-            count++;
-        }
+        std::vector<std::string> translated_lines = translator.translate_batch(lines, 256);
 
         auto t1 = std::chrono::high_resolution_clock::now();
         double total_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-        std::cout << "✅ Finished translating " << count << " lines in " << (total_ms / 1000.0) << "s (" << (total_ms / count) << " ms/line)" << std::endl;
+
+        if (!output_file.empty()) {
+            std::ofstream f_out(output_file);
+            for (const auto& l : translated_lines) {
+                f_out << l << "\n";
+            }
+            f_out.close();
+            std::cout << "📦 Saved translated file: " << output_file << std::endl;
+        } else {
+            for (size_t i = 0; i < std::min<size_t>(10, translated_lines.size()); ++i) {
+                std::cout << translated_lines[i] << "\n";
+            }
+        }
+
+        std::cout << "✅ Finished translating " << lines.size() << " lines in " << (total_ms / 1000.0) << "s (" << (lines.size() / (total_ms / 1000.0)) << " lines/sec)" << std::endl;
         return 0;
     }
 
