@@ -12,6 +12,7 @@ int main(int argc, char* argv[]) {
     std::string input_file = "";
     std::string output_file = "";
     bool run_benchmark = false;
+    bool use_gpu = false;
 
     for (int i = 1; i < argc; ++i) {
         if (std::strcmp(argv[i], "--text") == 0 && i + 1 < argc) {
@@ -24,20 +25,24 @@ int main(int argc, char* argv[]) {
             base_dir = argv[++i];
         } else if (std::strcmp(argv[i], "--benchmark") == 0) {
             run_benchmark = true;
+        } else if (std::strcmp(argv[i], "--gpu") == 0) {
+            use_gpu = true;
+        } else if (std::strcmp(argv[i], "--cpu") == 0) {
+            use_gpu = false;
         } else if (input_text.empty() && argv[i][0] != '-') {
             input_text = argv[i];
         }
     }
 
     TSLTranslator translator;
-    if (!translator.init(base_dir)) {
+    if (!translator.init(base_dir, use_gpu)) {
         std::cerr << "❌ Failed to initialize TSL Native C++ Translator." << std::endl;
         return 1;
     }
 
     if (run_benchmark) {
         std::cout << "\n================================================================================" << std::endl;
-        std::cout << "🚀 CHƯƠNG TRÌNH BENCHMARK TỐC ĐỘ NGUYÊN BẢN C++ (NATIVE C++ BENCHMARK)" << std::endl;
+        std::cout << "🚀 CHƯƠNG TRÌNH BENCHMARK TỐC ĐỘ NGUYÊN BẢN C++ (" << (use_gpu ? "GPU CUDA" : "CPU") << ")" << std::endl;
         std::cout << "================================================================================" << std::endl;
 
         std::vector<std::string> test_sentences = {

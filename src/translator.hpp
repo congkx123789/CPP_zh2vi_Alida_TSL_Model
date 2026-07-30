@@ -17,7 +17,7 @@
 
 /**
  * @class TSLTranslator
- * @brief Lớp dịch thuật cấp cao tích hợp toàn bộ Pipeline 3 Trạm C++ Nguyên bản
+ * @brief Lớp dịch thuật cấp cao tích hợp toàn bộ Pipeline 3 Trạm C++ Nguyên bản (Hỗ trợ CPU & GPU CUDA)
  */
 class TSLTranslator {
 public:
@@ -27,9 +27,10 @@ public:
     /**
      * @brief Khởi tạo toàn bộ động cơ dịch (nạp Tokenizer, DAWG Trie, ONNX Model, Hán Việt Dict)
      * @param base_dir Thư mục gốc chứa data/ và model/
+     * @param use_gpu Đặt true để kích hoạt tăng tốc GPU CUDA
      * @return true nếu khởi tạo thành công
      */
-    bool init(const std::string& base_dir = ".");
+    bool init(const std::string& base_dir = ".", bool use_gpu = false);
 
     /**
      * @brief Dịch một câu tiếng Trung sang tiếng Việt hoàn chỉnh

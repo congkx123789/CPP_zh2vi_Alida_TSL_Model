@@ -22,7 +22,7 @@ ONNXInferenceEngine::~ONNXInferenceEngine() {
     }
 }
 
-bool ONNXInferenceEngine::load_model(const std::string& model_path) {
+bool ONNXInferenceEngine::load_model(const std::string& model_path, bool use_gpu) {
     impl->g_ort = OrtGetApiBase()->GetApi(17);
     if (!impl->g_ort) {
         std::cerr << "❌ Failed to initialize ONNX Runtime API Base." << std::endl;
@@ -43,6 +43,21 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path) {
     }
     impl->g_ort->SetIntraOpNumThreads(impl->session_options, 1);
     impl->g_ort->SetSessionGraphOptimizationLevel(impl->session_options, ORT_ENABLE_ALL);
+
+    if (use_gpu) {
+        OrtCUDAProviderOptions cuda_options;
+        memset(&cuda_options, 0, sizeof(cuda_options));
+        cuda_options.device_id = 0;
+        OrtStatus* cuda_status = impl->g_ort->SessionOptionsAppendExecutionProvider_CUDA(impl->session_options, &cuda_options);
+        if (cuda_status != nullptr) {
+            std::cout << "⚠️ Warning: Failed to enable CUDA Provider (" << impl->g_ort->GetErrorMessage(cuda_status) << "). Falling back to CPU Mode." << std::endl;
+            impl->g_ort->ReleaseStatus(cuda_status);
+        } else {
+            std::cout << "🚀 [C++ ONNX Engine] GPU CUDA Execution Provider Active on NVIDIA RTX GPU!" << std::endl;
+        }
+    } else {
+        std::cout << "⚡ [C++ ONNX Engine] CPU Execution Mode Active." << std::endl;
+    }
 
     status = impl->g_ort->CreateSession(impl->env, model_path.c_str(), impl->session_options, &impl->session);
     if (status != nullptr) {

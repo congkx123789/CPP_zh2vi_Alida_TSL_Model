@@ -1,11 +1,8 @@
 /**
  * @file onnx_engine.hpp
  * @author Hà Vũ Công
- * @brief Động cơ suy luận C++ ONNX Runtime API cho Mô hình AI Alida TSL INT8
+ * @brief Động cơ suy luận C++ ONNX Runtime API cho Mô hình AI Alida TSL INT8 (Hỗ trợ GPU CUDA & CPU)
  * @url https://github.com/congkx123789/CPP_zh2vi_Alida_TSL_Model
- * 
- * Kiến trúc Trạm 2: Nạp trực tiếp file student_nat_int8.onnx (17 MB)
- * thực thi suy luận Non-Autoregressive Transformer trong 1 bước duy nhất (O(1)).
  */
 
 #ifndef ONNX_ENGINE_HPP
@@ -18,7 +15,7 @@
 
 /**
  * @class ONNXInferenceEngine
- * @brief Lớp quản lý suy luận ONNX Runtime C API nguyên bản
+ * @brief Lớp quản lý suy luận ONNX Runtime C API nguyên bản (CPU & GPU CUDA)
  */
 class ONNXInferenceEngine {
 public:
@@ -26,11 +23,12 @@ public:
     ~ONNXInferenceEngine();
 
     /**
-     * @brief Nạp mô hình INT8 ONNX từ đĩa
+     * @brief Nạp mô hình INT8 ONNX từ đĩa (Hỗ trợ tăng tốc GPU CUDA)
      * @param model_path Đường dẫn tới file student_nat_int8.onnx
+     * @param use_gpu Đặt true để dùng GPU CUDA Execution Provider
      * @return true nếu nạp thành công
      */
-    bool load_model(const std::string& model_path);
+    bool load_model(const std::string& model_path, bool use_gpu = false);
 
     /**
      * @brief Thực thi suy luận Forward Pass nhận câu đầu vào và trả về ma trận Logits
