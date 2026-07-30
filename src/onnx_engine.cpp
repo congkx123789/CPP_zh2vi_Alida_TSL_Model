@@ -41,6 +41,8 @@ bool ONNXInferenceEngine::load_model(const std::string& model_path) {
         impl->g_ort->ReleaseStatus(status);
         return false;
     }
+    impl->g_ort->SetIntraOpNumThreads(impl->session_options, 1);
+    impl->g_ort->SetSessionGraphOptimizationLevel(impl->session_options, ORT_ENABLE_ALL);
 
     status = impl->g_ort->CreateSession(impl->env, model_path.c_str(), impl->session_options, &impl->session);
     if (status != nullptr) {

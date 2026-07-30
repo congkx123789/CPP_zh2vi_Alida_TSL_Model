@@ -177,7 +177,7 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
             std::string best_meaning = meanings[0];
 
             if (phrase_len == 1 && hv_char_multi.count(char_zh) > 0 && hv_char_list.count(char_zh) > 0) {
-                float max_cand_score = -1.0f;
+                float max_cand_score = -1e9f;
                 std::string best_cand = meanings[0];
                 const auto& cands = hv_char_list.at(char_zh);
 
@@ -193,11 +193,11 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
                 }
                 best_meaning = best_cand;
             } else if (meanings.size() > 1) {
-                float max_cand_score = -1.0f;
+                float max_cand_score = -1e9f;
                 std::string best_cand = meanings[0];
 
                 for (const auto& cand : meanings) {
-                    float max_ai_prob = 0.0f;
+                    float max_ai_prob = -1e9f;
                     size_t start = 0;
                     while (start < cand.size()) {
                         while (start < cand.size() && cand[start] == ' ') start++;
@@ -240,7 +240,7 @@ std::string LogitsProcessor::process_logits(const float* logits_data, int seq_le
                     int w_min = std::max(0, (int)(i * ((double)seq_len / std::max(n_zh, 1))) - 2);
                     int w_max = std::min(seq_len, (int)((i + 1) * ((double)seq_len / std::max(n_zh, 1))) + 3);
 
-                    float max_cand_score = -1.0f;
+                    float max_cand_score = -1e9f;
                     best_hv = hv_val.substr(0, slash_pos);
 
                     size_t start = 0;
