@@ -4,6 +4,7 @@
 #include <vector>
 #include <chrono>
 #include <cstring>
+#include <iomanip>
 #include "translator.hpp"
 
 int main(int argc, char* argv[]) {
@@ -50,14 +51,14 @@ int main(int argc, char* argv[]) {
 
     if (run_benchmark) {
         std::string mode_name = "CPU MODE";
-        if (mode == TSLExecutionMode::GPU_CUDA) mode_name = "GPU CUDA TENSOR CORES";
+        if (mode == TSLExecutionMode::GPU_CUDA) mode_name = "NVIDIA GPU CUDA TENSOR CORES";
         else if (mode == TSLExecutionMode::NPU_COREML) mode_name = "APPLE NEURAL ENGINE (ANE CoreML)";
         else if (mode == TSLExecutionMode::NPU_QNN) mode_name = "QUALCOMM SNAPDRAGON HEXAGON NPU (QNN SDK)";
-        else if (mode == TSLExecutionMode::NPU_NNAPI) mode_name = "ANDROID UNIVERSAL NPU (NNAPI: MediaTek APU/Exynos/Tensor)";
+        else if (mode == TSLExecutionMode::NPU_NNAPI) mode_name = "ANDROID UNIVERSAL NPU (NNAPI)";
         else if (mode == TSLExecutionMode::ARM_XNNPACK) mode_name = "ARM MOBILE LOW-POWER ENGINE (XNNPACK)";
 
         std::cout << "\n================================================================================" << std::endl;
-        std::cout << "🚀 CHƯƠNG TRÌNH BENCHMARK TỐC ĐỘ NGUYÊN BẢN C++ (" << mode_name << ")" << std::endl;
+        std::cout << "🚀 CHI TIẾT BENCHMARK TỐC ĐỘ NGUYÊN BẢN C++ (" << mode_name << ")" << std::endl;
         std::cout << "================================================================================" << std::endl;
 
         std::vector<std::string> base_sentences = {
@@ -68,36 +69,51 @@ int main(int argc, char* argv[]) {
             "一头扎进九层楼",
             "李云飞大怒道：“掌柜在门前等 hắn，一言既出，驷马难追！”",
             "第三百五十六章 5000两白银!",
-            " hắn 一头扎进九层楼，向前方走去。"
+            " hắn 一头扎进九层楼，向前方走去。",
+            "修仙者的路是极其艰难的，他经历了无数的磨难。",
+            "他拿起了宗门的飞剑，快步地走了。"
         };
 
-        int total_runs = 5000;
+        // 1. Sequential Single Sentence Latency Test
+        int seq_runs = 500;
+        auto t0 = std::chrono::high_resolution_clock::now();
+        for (int r = 0; r < seq_runs; ++r) {
+            translator.translate(base_sentences[r % base_sentences.size()]);
+        }
+        auto t1 = std::chrono::high_resolution_clock::now();
+        double seq_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
+        double seq_tps = (seq_runs / seq_ms) * 1000.0;
+        double seq_latency = seq_ms / seq_runs;
+
+        std::cout << "⚡ [Sequential Mode] 500 câu  | Thời gian: " << std::fixed << std::setprecision(3) << (seq_ms / 1000.0)
+                  << "s | Độ trễ: " << seq_latency << " ms/câu | Băng thông: " << std::setprecision(1) << seq_tps << " câu/giây" << std::endl;
+
+        // 2. Parallel Batch Tests across varied batch sizes
+        std::vector<size_t> batch_sizes = {32, 64, 128, 256, 512};
+        int total_runs = 10000;
         std::vector<std::string> test_sentences(total_runs);
         for (int r = 0; r < total_runs; ++r) {
             test_sentences[r] = base_sentences[r % base_sentences.size()];
         }
 
-        // Test 1: Single Sentence Sequential Mode
-        auto t0 = std::chrono::high_resolution_clock::now();
-        for (int r = 0; r < 500; ++r) {
-            translator.translate(test_sentences[r]);
+        std::cout << "--------------------------------------------------------------------------------" << std::endl;
+        std::cout << "🔥 [KẾT QUẢ TĂNG TỐC GPU TENSOR BATCHING TẠI CÁC KÍCH THƯỚC BATCH KHI BÃO HÒA]" << std::endl;
+        std::cout << "--------------------------------------------------------------------------------" << std::endl;
+
+        for (size_t bs : batch_sizes) {
+            auto tb0 = std::chrono::high_resolution_clock::now();
+            auto results = translator.translate_batch(test_sentences, bs);
+            auto tb1 = std::chrono::high_resolution_clock::now();
+
+            double b_ms = std::chrono::duration<double, std::milli>(tb1 - tb0).count();
+            double b_tps = (total_runs / b_ms) * 1000.0;
+            double b_latency = b_ms / total_runs;
+
+            std::cout << "  • Batch " << std::setw(3) << bs << " (" << total_runs << " câu) | Thời gian: "
+                      << std::setprecision(3) << (b_ms / 1000.0) << "s | Độ trễ: " << b_latency << " ms/câu | Băng thông: "
+                      << std::setprecision(1) << b_tps << " câu/giây (" << std::setprecision(1) << (b_tps / seq_tps) << "x speedup)" << std::endl;
         }
-        auto t1 = std::chrono::high_resolution_clock::now();
-        double seq_ms = std::chrono::duration<double, std::milli>(t1 - t0).count();
-        double seq_tps = (500.0 / seq_ms) * 1000.0;
 
-        std::cout << "⚡ [C++ Sequential Mode] 500 câu              : " << (seq_ms / 1000.0) << "s (" << seq_tps << " câu/giây)" << std::endl;
-
-        // Test 2: Parallel Batch GPU / NPU Mode
-        auto t2 = std::chrono::high_resolution_clock::now();
-        auto batch_results = translator.translate_batch(test_sentences, 256);
-        auto t3 = std::chrono::high_resolution_clock::now();
-
-        double batch_ms = std::chrono::duration<double, std::milli>(t3 - t2).count();
-        double batch_tps = (total_runs / batch_ms) * 1000.0;
-
-        std::cout << "🔥 [C++ Parallel Batch 256 (" << mode_name << ")] " << total_runs << " câu : " << (batch_ms / 1000.0) << "s (" << batch_tps << " câu/giây)" << std::endl;
-        std::cout << "🚀 Tăng tốc vượt trội                     : " << (batch_tps / seq_tps) << "x lần so với dịch tuần tự" << std::endl;
         std::cout << "================================================================================" << std::endl;
         return 0;
     }
