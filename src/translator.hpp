@@ -28,7 +28,7 @@ public:
     /**
      * @brief Khởi tạo toàn bộ động cơ dịch (nạp Tokenizer, DAWG Trie, ONNX Model, Hán Việt Dict)
      * @param base_dir Thư mục gốc chứa data/ và model/
-     * @param mode Chế độ phần cứng thực thi (CPU / GPU_CUDA / NPU_MOBILE)
+     * @param mode Chế độ phần cứng thực thi (CPU / GPU_CUDA / NPU_NNAPI / NPU_QNN / NPU_COREML / ARM_XNNPACK)
      * @return true nếu khởi tạo thành công
      */
     bool init(const std::string& base_dir = ".", TSLExecutionMode mode = TSLExecutionMode::CPU);
@@ -47,6 +47,11 @@ public:
      * @return Mảng danh sách các câu tiếng Việt tương ứng
      */
     std::vector<std::string> translate_batch(const std::vector<std::string>& texts_zh, size_t batch_size = 256);
+
+    /**
+     * @brief Đo chi tiết từng Trạm (Bottleneck Profiling) để tìm chính xác điểm nghẽn hiệu năng
+     */
+    std::vector<std::string> translate_batch_profiled(const std::vector<std::string>& texts_zh, size_t batch_size, double& out_p1_ms, double& out_p2_ms, double& out_p3_ms);
 
 private:
     void warmup();

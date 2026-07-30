@@ -84,33 +84,52 @@ std::string TSLTranslator::translate(const std::string& text_zh) {
 }
 
 std::vector<std::string> TSLTranslator::translate_batch(const std::vector<std::string>& texts_zh, size_t batch_size) {
+    double p1, p2, p3;
+    return translate_batch_profiled(texts_zh, batch_size, p1, p2, p3);
+}
+
+std::vector<std::string> TSLTranslator::translate_batch_profiled(const std::vector<std::string>& texts_zh, size_t batch_size, double& out_p1_ms, double& out_p2_ms, double& out_p3_ms) {
     std::vector<std::string> results(texts_zh.size());
     if (!is_ready || texts_zh.empty()) return results;
 
+    out_p1_ms = 0.0;
+    out_p2_ms = 0.0;
+    out_p3_ms = 0.0;
+
     for (size_t b_start = 0; b_start < texts_zh.size(); b_start += batch_size) {
         size_t cur_batch = std::min(batch_size, texts_zh.size() - b_start);
-        std::vector<int64_t> batched_ids;
-        batched_ids.reserve(cur_batch * 64);
 
+        std::vector<int64_t> batched_ids(cur_batch * 64);
         std::vector<std::vector<MatchInfo>> all_matches(cur_batch);
 
+        // Phase 1: CPU Tokenization & MARISA Trie Matching
+        auto tp1_start = std::chrono::high_resolution_clock::now();
+        #pragma omp parallel for schedule(static)
         for (size_t i = 0; i < cur_batch; ++i) {
             const auto& text = texts_zh[b_start + i];
             std::vector<int64_t> ids = tokenizer.encode_zh(text, 64);
-            batched_ids.insert(batched_ids.end(), ids.begin(), ids.end());
+            std::copy(ids.begin(), ids.end(), batched_ids.begin() + (i * 64));
             all_matches[i] = trie.match_sentence(text);
         }
+        auto tp1_end = std::chrono::high_resolution_clock::now();
+        out_p1_ms += std::chrono::duration<double, std::milli>(tp1_end - tp1_start).count();
 
+        // Phase 2: GPU CUDA ONNX Forward Pass
         std::vector<float> batch_logits;
         std::vector<int64_t> logits_shape;
-        if (!onnx_engine.run_batch(batched_ids, cur_batch, batch_logits, logits_shape)) {
-            continue;
-        }
+        auto tp2_start = std::chrono::high_resolution_clock::now();
+        bool ok = onnx_engine.run_batch(batched_ids, cur_batch, batch_logits, logits_shape);
+        auto tp2_end = std::chrono::high_resolution_clock::now();
+        out_p2_ms += std::chrono::duration<double, std::milli>(tp2_end - tp2_start).count();
+
+        if (!ok) continue;
 
         size_t seq_len = 64;
         size_t vocab_size = (logits_shape.size() >= 3) ? logits_shape[2] : 30000;
         size_t stride = seq_len * vocab_size;
 
+        // Phase 3: CPU Candidate Logits Selection & Translation String Formatting
+        auto tp3_start = std::chrono::high_resolution_clock::now();
         #pragma omp parallel for schedule(static)
         for (size_t i = 0; i < cur_batch; ++i) {
             const float* sentence_logits = batch_logits.data() + (i * stride);
@@ -118,6 +137,8 @@ std::vector<std::string> TSLTranslator::translate_batch(const std::vector<std::s
                 sentence_logits, seq_len, vocab_size, texts_zh[b_start + i], all_matches[i]
             );
         }
+        auto tp3_end = std::chrono::high_resolution_clock::now();
+        out_p3_ms += std::chrono::duration<double, std::milli>(tp3_end - tp3_start).count();
     }
 
     return results;
