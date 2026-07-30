@@ -92,9 +92,9 @@ size_t TSLTranslator::get_adaptive_batch_size(size_t total_sentences) const {
             break;
 
         default: // CPU Mode
-            if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) target_batch = 16;
-            else if (perf_mode == TSLPerformanceMode::BALANCED_NORMAL) target_batch = 32;
-            else target_batch = 64;  // MAX_PERFORMANCE
+            if (perf_mode == TSLPerformanceMode::ECO_LOW_POWER) target_batch = 8;     // Peak RAM: ~170 MB
+            else if (perf_mode == TSLPerformanceMode::BALANCED_NORMAL) target_batch = 16; // Peak RAM: ~278 MB (Full Speed ~75 câu/s)
+            else target_batch = 32;  // MAX_PERFORMANCE: ~475 MB RAM
             break;
     }
 
