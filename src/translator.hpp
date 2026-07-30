@@ -49,6 +49,12 @@ public:
     std::vector<std::string> translate_batch(const std::vector<std::string>& texts_zh, size_t batch_size = 256);
 
     /**
+     * @brief Dịch theo cơ chế Pipeline Đôi (Double-Buffering Async Pipelining)
+     * Giúp GPU và CPU chạy đồng thời 100% không triệt tiêu thời gian chờ nhau.
+     */
+    std::vector<std::string> translate_batch_pipelined(const std::vector<std::string>& texts_zh, size_t batch_size = 128);
+
+    /**
      * @brief Đo chi tiết từng Trạm (Bottleneck Profiling) để tìm chính xác điểm nghẽn hiệu năng
      */
     std::vector<std::string> translate_batch_profiled(const std::vector<std::string>& texts_zh, size_t batch_size, double& out_p1_ms, double& out_p2_ms, double& out_p3_ms);

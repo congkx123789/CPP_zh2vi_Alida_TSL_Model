@@ -3,6 +3,7 @@
 #include <fstream>
 #include <chrono>
 #include <algorithm>
+#include <future>
 #include <omp.h>
 
 TSLTranslator::TSLTranslator() : is_ready(false) {}
@@ -84,8 +85,74 @@ std::string TSLTranslator::translate(const std::string& text_zh) {
 }
 
 std::vector<std::string> TSLTranslator::translate_batch(const std::vector<std::string>& texts_zh, size_t batch_size) {
-    double p1, p2, p3;
-    return translate_batch_profiled(texts_zh, batch_size, p1, p2, p3);
+    return translate_batch_pipelined(texts_zh, batch_size);
+}
+
+struct BatchData {
+    size_t start_idx;
+    size_t size;
+    std::vector<int64_t> batched_ids;
+    std::vector<std::vector<MatchInfo>> all_matches;
+};
+
+std::vector<std::string> TSLTranslator::translate_batch_pipelined(const std::vector<std::string>& texts_zh, size_t batch_size) {
+    std::vector<std::string> results(texts_zh.size());
+    if (!is_ready || texts_zh.empty()) return results;
+
+    size_t total_sentences = texts_zh.size();
+    size_t num_batches = (total_sentences + batch_size - 1) / batch_size;
+
+    auto prepare_batch = [&](size_t b_idx) -> BatchData {
+        BatchData bd;
+        bd.start_idx = b_idx * batch_size;
+        bd.size = std::min(batch_size, total_sentences - bd.start_idx);
+        bd.batched_ids.resize(bd.size * 64);
+        bd.all_matches.resize(bd.size);
+
+        #pragma omp parallel for schedule(static)
+        for (size_t i = 0; i < bd.size; ++i) {
+            const auto& text = texts_zh[bd.start_idx + i];
+            std::vector<int64_t> ids = tokenizer.encode_zh(text, 64);
+            std::copy(ids.begin(), ids.end(), bd.batched_ids.begin() + (i * 64));
+            bd.all_matches[i] = trie.match_sentence(text);
+        }
+        return bd;
+    };
+
+    // Pre-fetch Batch 0 asynchronously
+    std::future<BatchData> next_batch_future = std::async(std::launch::async, prepare_batch, 0);
+
+    for (size_t b = 0; b < num_batches; ++b) {
+        // Wait for current batch pre-processing to finish
+        BatchData cur_bd = next_batch_future.get();
+
+        // Asynchronously launch pre-fetching for Batch B+1 while GPU processes Batch B
+        if (b + 1 < num_batches) {
+            next_batch_future = std::async(std::launch::async, prepare_batch, b + 1);
+        }
+
+        // GPU Forward Pass
+        std::vector<float> batch_logits;
+        std::vector<int64_t> logits_shape;
+        if (!onnx_engine.run_batch(cur_bd.batched_ids, cur_bd.size, batch_logits, logits_shape)) {
+            continue;
+        }
+
+        size_t seq_len = 64;
+        size_t vocab_size = (logits_shape.size() >= 3) ? logits_shape[2] : 30000;
+        size_t stride = seq_len * vocab_size;
+
+        // CPU Logits Selection & Post-processing
+        #pragma omp parallel for schedule(static)
+        for (size_t i = 0; i < cur_bd.size; ++i) {
+            const float* sentence_logits = batch_logits.data() + (i * stride);
+            results[cur_bd.start_idx + i] = logits_processor->process_logits(
+                sentence_logits, seq_len, vocab_size, texts_zh[cur_bd.start_idx + i], cur_bd.all_matches[i]
+            );
+        }
+    }
+
+    return results;
 }
 
 std::vector<std::string> TSLTranslator::translate_batch_profiled(const std::vector<std::string>& texts_zh, size_t batch_size, double& out_p1_ms, double& out_p2_ms, double& out_p3_ms) {
